@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
 
@@ -16,9 +17,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - run: make test
         env:
-          PRIVATE_TERMS: ${{ vars.PRIVATE_TERMS }}
+          PRIVATE_TERMS: ${{ secrets.PRIVATE_TERMS }}
+          PUBLIC_TEXT_FORK: ${{ github.event.pull_request.head.repo.fork }}
+          PT_RANGE: ${{ github.event.pull_request && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || '' }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
 
   ci-ok:
     name: CI OK

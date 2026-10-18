@@ -22,7 +22,7 @@ One brief for one package, from `templates/brief.md` in this plugin's repository
 
 1. Copy the template's sections as they are and fill every one; write "none" where there is nothing.
 2. Conclusions, not reasoning. The receiver never sees your chat, so every fact needs its link or evidence and every settled decision its link.
-3. Header: the package's issue (the pull request closes it), repository and base, the risk with what a mistake would do, and the implementer kind by `docs/routing.md`: trivial (one-line fix, rename, bump), specified (clear spec: CI, tooling, server work), symptom bug (known only by what it does), native mobile (needs the native build and tests).
+3. Header: the package's issue (the pull request closes it), repository and base, the risk with what a mistake would do (low, normal, critical, or "critical, a revert can't undo it", which gets the strongest critical reviewer; criteria in `RULES.md`), and the implementer kind by `docs/routing.md`: trivial (one-line fix, rename, bump), specified (clear spec: CI, tooling, server work), symptom bug (known only by what it does), native mobile (needs the native build and tests).
 4. Goal, where the work is, Don't touch (including what another session holds), and the proof (a tester run on the real thing where the change touches something that runs).
 5. Needs the maintainer: usually none; otherwise as it will appear on the Today page.
 6. One page. A plan belongs in the initiative's parent issue.

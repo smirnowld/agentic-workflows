@@ -2,9 +2,9 @@
 
 Every session in a project on this setup starts with these rules. The project's `AGENTS.md` adds its own: its delegation table, hosts, commands and anything the project does differently. A project changes one of these rules by naming its section and saying what replaces it.
 
-Where a mechanism enforces a rule, the rule names it. The mechanism is what counts; the rule explains it.
+Where a mechanism enforces a rule, the rule names it. The mechanism is what counts; the rule explains it. Every mechanism has a test that shows it fires, and one that fails open (lets everything through when it breaks) raises an alert rather than going quiet. Add a hook only for a mistake that has happened, and keep count of what it blocks and what it blocks wrongly.
 
-Three words recur. A **track** is one area of work (CI, say) with its own lead and board. The **fence** is what agents may do on their own, set by the delegation table and enforced by CODEOWNERS, rulesets and permissions. The **Today page** ([docs/today.md](docs/today.md)) is where the maintainer sees what needs them.
+Three words recur. A **track** is one area of work, split by purpose rather than by host (CI, say), with its own lead and board. The **fence** is what agents may do on their own, set by the delegation table and enforced by CODEOWNERS, rulesets and permissions. The **Today page** ([docs/today.md](docs/today.md)) is where the maintainer sees what needs them.
 
 ## Who decides
 
@@ -19,6 +19,7 @@ Three words recur. A **track** is one area of work (CI, say) with its own lead a
 - A package session takes one work package from one brief, in its own worktree. It coordinates subagents, checks their evidence, merges inside the fence and reports back in a few lines.
 - Each role's model comes from [routing.json](routing.json) ([docs/routing.md](docs/routing.md)). A launch check refuses a Claude launch whose model the role's route doesn't allow; effort comes from the role's agent file, and for Codex from the route.
 - Use the shipped helpers (waiting, launching Codex) rather than hand-written loops.
+- Each role starts with only the context its job needs: its agent file, the brief and the files the brief names. A lead that is waiting sleeps until something wakes it rather than polling.
 - Never touch work you didn't start: other sessions' worktrees, branches, uncommitted changes or processes.
 
 ## Proof and review

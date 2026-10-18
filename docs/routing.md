@@ -26,7 +26,7 @@ Why: in blind-graded side-by-side runs, Codex Sol at medium did best on specifie
 | Tester | Sonnet, low | Uses the product: runs a real job or flow on what the change touches and reports the run, timings and resources used. |
 | Reviewer | Sonnet, medium | Independent review of normal and mechanical changes. |
 | Critical reviewer | the other family: Codex Sol high for Claude-built work, Opus high for Codex-built work | Review of critical changes ([RULES.md](../RULES.md#proof-and-review)). |
-| Strongest critical reviewer | the other family: Codex Astra extra-high, or Fable extra-high | Only when a revert can't undo the harm and it reaches production data, backups, secrets or credentials, money, or real people's data. Never lowered. |
+| Strongest critical reviewer | the other family: Codex Astra extra-high for Claude-built work, Fable extra-high for Codex-built work | Only when a revert can't undo the harm and it reaches production data, backups, secrets or credentials, money, or real people's data. Never lowered. |
 | Visual reviewer | Sonnet, medium | Screens and pages: layout, states, copy with the strings attached. |
 
 ## The other family

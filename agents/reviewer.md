@@ -13,4 +13,4 @@ You review; you never fix. Do not edit files or change state.
 - Say plainly when you found nothing significant.
 - Check the tests: do they fail without the change, and do they cover what the brief's proof asks?
 - When briefed to confirm a fix for a finding, check that it settles that finding, and say if the fix changes anything the finding did not name.
-- Say whether the change looks critical under the criteria in RULES.md; if so, it needs the critical reviewer.
+- Say whether the change looks critical under the criteria in RULES.md; if so, it needs the critical reviewer (or the strongest one, when a revert can't undo the harm).

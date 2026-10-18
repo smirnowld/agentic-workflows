@@ -4,7 +4,7 @@
 
 **Work package:** LINK to its issue, which the pull request closes
 **Repository and base:** OWNER/REPO, from main
-**Risk:** low | normal | critical: WHAT A MISTAKE WOULD DO
+**Risk:** low | normal | critical | critical, a revert can't undo it: WHAT A MISTAKE WOULD DO  <!-- the last option means the strongest critical reviewer: a revert can't undo the harm and it reaches production data, backups, secrets or credentials, money, or real people's data -->
 **Implementer kind:** trivial | specified | symptom-bug | native-mobile  <!-- the route's key in routing.json -->
 
 ## Goal
