@@ -2,11 +2,11 @@
 """Run one Codex job for a role from routing.json, non-interactively.
 
   codex-run --role implementer --kind KIND --cwd DIR --prompt-file FILE [--fallback]
-  codex-run --role critical-reviewer --cwd DIR --prompt-file FILE
+  codex-run --role critical-reviewer[-strongest] --cwd DIR --prompt-file FILE
 
 The implementer's route is the kind's primary, or its fallback with --fallback;
 if that route is not the codex family, exit 2 (use the Agent tool instead).
-The critical reviewer's route is its "codex" entry. The model and reasoning
+The (strongest) critical reviewer's route is its "codex" entry. The model and reasoning
 effort come from routing.json; the sandbox is workspace-write for the
 implementer and read-only for the critical reviewer. The final message goes to
 a report file whose path is printed on stdout, also after a failure if the
@@ -27,7 +27,8 @@ import subprocess
 import sys
 import time
 
-SANDBOX = {"implementer": "workspace-write", "critical-reviewer": "read-only"}
+SANDBOX = {"implementer": "workspace-write", "critical-reviewer": "read-only",
+           "critical-reviewer-strongest": "read-only"}
 
 
 def die(msg):
@@ -76,9 +77,9 @@ def find_route(routing, role, kind, fallback):
             die("the %s route for kind %s is %s %s, not codex: launch it with the Agent tool"
                 % ("fallback" if fallback else "primary", kind, route.get("family"), route.get("model")))
         return route
-    if role == "critical-reviewer":
+    if role in ("critical-reviewer", "critical-reviewer-strongest"):
         if not isinstance(spec.get("codex"), dict):
-            die("critical-reviewer has no codex route in routing.json")
+            die("%s has no codex route in routing.json" % role)
         return spec["codex"]
     die("role %r does not run on codex" % role)
 

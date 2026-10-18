@@ -17,6 +17,8 @@ jobs:
         with:
           persist-credentials: false
       - run: make test
+        env:
+          PRIVATE_TERMS: ${{ vars.PRIVATE_TERMS }}
 
   ci-ok:
     name: CI OK

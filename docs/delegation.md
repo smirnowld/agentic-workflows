@@ -4,6 +4,16 @@ Each track has a delegation table: every kind of action its agents might take, w
 
 A row with no mechanism is a wish. Building the mechanism is fence work and comes first; until it exists, the row stays with the maintainer.
 
+## Who decides
+
+- **Agents decide, act and merge** inside the fence: the limits that mechanisms enforce (access rights, admission policies, rulesets, scoped identities). That includes running commands and using the secrets their identity holds, with checks green and an independent review passed.
+- **The maintainer decides**:
+  - direction: vision, roadmap, users, design taste, high-impact standards;
+  - starting and stopping tracks;
+  - budget and the split between providers;
+  - anything that loosens the fence (see the pattern below);
+  - irreversible or outward-facing actions: publishing, money, accounts, real people's data.
+
 ## Columns
 
 | Column | What goes in it |
@@ -17,7 +27,7 @@ Group rows by area: code and merges; hosts; isolation; runs in other repositorie
 
 ## Patterns
 
-These held up in the first track. Start from them.
+Start from these.
 
 ### Inside the fence, agents merge
 
@@ -71,3 +81,10 @@ Spending limits, paid tiers, new paid services, placing and rotating secrets, an
 | **Money and secrets** | | | |
 | Budgets, paid tiers, placing or rotating secrets | maintainer | billing; secret store | |
 ```
+
+## Identity and isolation
+
+- A network identity belongs to a machine, not to a process: anything on a machine reaches what the machine can. A pull request runs its own workflow file before anyone reviews it, so every CI job counts as hostile.
+- The maintainer's own devices run no agents. Agents run on a separate host as a standard user with their own credentials: none of the maintainer's keys, password manager or browser sign-ins.
+- The network denies by default. Agents and runners reach only what their track needs, and never the maintainer's devices.
+- Workflow files and deploy secrets are protected on the code host: code owners and a ruleset for workflow files, and deploy secrets only in environments limited to the main branch or gated by approval.

@@ -39,8 +39,13 @@ case $(argv) in *"-m gpt-6.1-sol -c model_reasoning_effort=\"low\" -s workspace-
 
 "$tool" --role critical-reviewer --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1 || bad "critical-reviewer failed"
 echo "critical-reviewer: $(argv)"
-case $(argv) in *"-m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -s read-only"*) ;; *) bad "critical-reviewer argv" ;; esac
+case $(argv) in *"-m gpt-6.1-sol -c model_reasoning_effort=\"high\" -s read-only"*) ;; *) bad "critical-reviewer argv" ;; esac
 grep -q 'RULES.md critical criteria' "$tmp/stdin" || bad "critical-reviewer body not prepended"
+
+"$tool" --role critical-reviewer-strongest --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1 || bad "critical-reviewer-strongest failed"
+echo "critical-reviewer-strongest: $(argv)"
+case $(argv) in *"-m gpt-6-astra -c model_reasoning_effort=\"xhigh\" -s read-only"*) ;; *) bad "critical-reviewer-strongest argv" ;; esac
+grep -q 'strongest critical reviewer' "$tmp/stdin" && grep -q 'RULES.md critical criteria' "$tmp/stdin" || bad "strongest body not prepended"
 
 # A route that is not codex: exit 2 and codex is not run.
 rm -f "$tmp/argv"

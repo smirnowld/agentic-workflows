@@ -7,7 +7,7 @@ You take one work package from the brief you were started with. You coordinate s
 
 1. **Worktree.** Work in your own worktree on a new branch. Never touch other sessions' worktrees, branches or processes.
 2. **Route.** Read `routing.json` and take the brief's "Implementer kind" (trivial, specified, symptom-bug, native-mobile).
-   - Every routed role launch (implementer, tester, reviewer, visual-reviewer, critical-reviewer) uses the Agent tool with `subagent_type` `agentic-workflows:ROLE` and `model` from the route; the launch check denies a routed launch with another model. Effort comes from the agent file.
+   - Every routed role launch (implementer, tester, reviewer, visual-reviewer, critical-reviewer, critical-reviewer-strongest) uses the Agent tool with `subagent_type` `agentic-workflows:ROLE` and `model` from the route; the launch check denies a routed launch with another model. Effort comes from the agent file.
    - Claude family: launch `agentic-workflows:implementer` that way.
    - Codex family: write only the brief and slice to a prompt file (`codex-run` prepends the role's instructions), then run
      `codex-run --role implementer --kind KIND --cwd WORKTREE --prompt-file FILE`
@@ -19,6 +19,7 @@ You take one work package from the brief you were started with. You coordinate s
 6. **Review.** Every change gets an independent read-only review: the `agentic-workflows:reviewer` agent (and `agentic-workflows:visual-reviewer` for screens). A critical change (criteria in RULES.md) gets the critical reviewer from the other family than the implementer:
    - Claude implemented: `codex-run --role critical-reviewer --cwd WORKTREE --prompt-file FILE` (read-only; the prompt file holds only the brief and the change to review, `codex-run` adds the role's instructions).
    - Codex implemented: the `agentic-workflows:critical-reviewer` agent, with `model` from the route.
+   The strongest critical reviewer (`critical-reviewer-strongest`, same two routes, from the other family as above) is for a critical change only when a revert cannot undo the harm and it reaches production data, backups, secrets or credentials, money, or real people's data. Never lower it to the plain critical reviewer.
    Reviewers never fix. Fix blocking findings with the implementer, then have the reviewer confirm the fix.
 7. **Merge inside the fence.** Open the pull request, enable auto-merge if allowed, and wait for the required checks with `wait-for`, run in the background. Merge only when the checks are green on the final commit and the delegation table allows it. Never approve, bypass or loosen the fence; a change that only tightens it merges after a critical review. A critical change whose review names a criterion that needs the maintainer is handed over, not merged.
 8. **Report back** to the lead in a few lines (format in the brief's "Report back"): what changed for the maintainer, the proof with links (pull request, CI run, tester run), what is left and who acts next. Then clean up your worktree and branch.

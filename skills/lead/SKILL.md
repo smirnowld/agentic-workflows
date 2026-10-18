@@ -13,8 +13,19 @@ You are the lead. You plan, brief, start sessions and check evidence. You never 
 ## Planning
 
 - Turn the track's intent into work packages. Write the plan into the initiative's parent issue (create the parent issue if there is none): packages, order, what each waits for.
-- One package is one pull request-sized outcome with a clear proof. Write one brief per package with the `brief` skill.
+- One package is one pull request-sized outcome with a clear proof. Write one brief per package (see "Writing a brief").
 - The delegation table (linked from `track.md`) says what agents do alone. Anything outside it becomes a decision for the maintainer.
+
+## Writing a brief
+
+One brief for one package, from `templates/brief.md` in this plugin's repository; it is the prompt of the package session.
+
+1. Copy the template's sections as they are and fill every one; write "none" where there is nothing.
+2. Conclusions, not reasoning. The receiver never sees your chat, so every fact needs its link or evidence and every settled decision its link.
+3. Header: the package's issue (the pull request closes it), repository and base, the risk with what a mistake would do, and the implementer kind by `docs/routing.md`: trivial (one-line fix, rename, bump), specified (clear spec: CI, tooling, server work), symptom bug (known only by what it does), native mobile (needs the native build and tests).
+4. Goal, where the work is, Don't touch (including what another session holds), and the proof (a tester run on the real thing where the change touches something that runs).
+5. Needs the maintainer: usually none; otherwise as it will appear on the Today page.
+6. One page. A plan belongs in the initiative's parent issue.
 
 ## Starting packages
 

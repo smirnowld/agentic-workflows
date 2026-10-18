@@ -39,6 +39,6 @@ The maintainer answers in the lead's chat, on the laptop or on the phone. The le
 | Moving, or stuck | Board items in progress whose last activity is older than the item's expected wait |
 | Measures | The code host's merges and reverts, the launch log, the billing usage |
 
-## What it replaces
+## Checks before publishing
 
-The previous setup's daily summary note: the same text every day, bare numbers, internal labels, counts instead of content, nothing kept that could be linked later, running on weekends. Each of those is a check the `today` skill runs on its own draft before publishing.
+The `today` skill checks its own draft before it publishes: no text repeated from the last build without a change, no bare numbers standing in for items, no internal labels, counts never in place of content, every item linkable later, nothing built on a weekend unless something needs the maintainer.

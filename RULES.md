@@ -26,7 +26,7 @@ Three words recur. A **track** is one area of work (CI, say) with its own lead a
 - Done means merged with every required check green on the final commit, or handed to the maintainer as a decision. An open pull request is progress.
 - A worker's report is not proof. Check the diff, the CI run, the job's output.
 - Every change gets an independent review by a read-only reviewer with fresh context. Reviewers never fix what they find.
-- A critical change gets the critical reviewer, from the other model family than the implementer's. A change is critical when a mistake would lose, rewrite or expose stored data or secrets, spend money, let one person act as or see another, deploy or release, weaken a required check, or change the fence.
+- A critical change gets the critical reviewer, from the other model family than the implementer's. A change is critical when a mistake would lose, rewrite or expose stored data or secrets, spend money, let one person act as or see another, deploy or release, weaken a required check, or change the fence. When a revert can't undo the harm and it reaches production data, backups, secrets or credentials, money, or real people's data, it gets the strongest critical reviewer instead, and that is never lowered.
 - Never skip, bypass or weaken a check. If something can't be verified, say what and why.
 
 ## Access, secrets and money

@@ -39,6 +39,9 @@ expect_agent "prefixed unknown role" agentic-workflows:nope "" pass
 expect_agent "implementer gpt" agentic-workflows:implementer gpt-6.1-sol deny
 expect_agent "critical-reviewer opus" agentic-workflows:critical-reviewer opus allow
 expect_agent "critical-reviewer sonnet" agentic-workflows:critical-reviewer sonnet deny
+expect_agent "critical-reviewer-strongest fable" agentic-workflows:critical-reviewer-strongest fable allow
+expect_agent "critical-reviewer-strongest opus" agentic-workflows:critical-reviewer-strongest opus deny
+expect_agent "critical-reviewer-strongest no model, file model" agentic-workflows:critical-reviewer-strongest "" allow
 expect_agent "reviewer no model, file model" agentic-workflows:reviewer "" allow
 expect_agent "critical-reviewer no model, file model" agentic-workflows:critical-reviewer "" allow
 expect_agent "explorer sonnet" agentic-workflows:explorer sonnet allow

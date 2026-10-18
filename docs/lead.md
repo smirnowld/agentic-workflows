@@ -36,9 +36,9 @@ The Today page ([today.md](today.md)) is built by a separate scheduled job, so i
 
 ## Measures
 
-- Lead tokens per merged outcome, compared with the previous setup's coordination for the same kind of work.
+- Lead tokens per merged outcome.
 - How often the maintainer had to step in on tactics.
 - What waking the lead costs: cache rebuilds after idle time.
 - The lead's own edits and shell writes: the target is zero.
 
-The first retro looks at these, and again after five working days. If the lead costs more than the old coordination for no gain, the retro proposes a different shape.
+The first retro looks at these, and again after five working days. If the lead's cost per outcome isn't worth what it saves the maintainer, the retro proposes a different shape.

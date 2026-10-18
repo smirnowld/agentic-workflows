@@ -12,8 +12,13 @@
     "visual-reviewer": { "family": "claude", "model": "sonnet", "effort": "medium" },
     "critical-reviewer": {
       "other_family": true,
-      "claude": { "model": "opus", "effort": "medium" },
-      "codex": { "model": "gpt-6.1-sol", "effort": "medium" }
+      "claude": { "model": "opus", "effort": "high" },
+      "codex": { "model": "gpt-6.1-sol", "effort": "high" }
+    },
+    "critical-reviewer-strongest": {
+      "other_family": true,
+      "claude": { "model": "fable", "effort": "xhigh" },
+      "codex": { "model": "gpt-6-astra", "effort": "xhigh" }
     },
     "implementer": {
       "kinds": {

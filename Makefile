@@ -1,5 +1,5 @@
 TESTS = bin/test-wait-for.sh tests/test-session-start.sh tests/test-json.sh \
-        tests/test-launch-check.sh tests/test-codex-run.sh
+        tests/test-launch-check.sh tests/test-codex-run.sh tests/test-public-text.sh
 
 .PHONY: test
 test:
