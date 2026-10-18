@@ -8,6 +8,8 @@ What this track is for, for whom, and how good it has to be. Three to five sente
 
 ## Repositories
 
+The main checkouts the lead reads, also listed in `.claude/settings.json`.
+
 | Repository | What it holds |
 |---|---|
 | OWNER/REPO | ... |

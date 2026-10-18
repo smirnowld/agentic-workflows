@@ -11,7 +11,9 @@ effort come from routing.json; the sandbox is workspace-write for the
 implementer and read-only for the critical reviewer. The final message goes to
 a report file whose path is printed on stdout, also after a failure if the
 file exists (codex's own output goes to stderr). The role's instructions (the
-body of agents/ROLE.md) are prepended to the prompt file's content. Launch and finish are appended to the launch log, like the hook's.
+body of agents/ROLE.md) are prepended to the prompt file's content, and the
+plugin's RULES.md comes before both, because Codex gets neither the session-start hook
+nor @ includes. Launch and finish are appended to the launch log, like the hook's.
 
 Exit codes: codex's own, 2 for a usage or routing problem.
 Codex flags: `codex exec --help` (codex-cli 0.162.1): -m/--model, -C/--cd,
@@ -93,7 +95,7 @@ def main():
     p.add_argument("--fallback", action="store_true")
     a = p.parse_args()  # exits 2 on a usage error
     # The plugin root is the parent of bin/, wherever the script is run from.
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     try:
         with open(os.path.join(root, "routing.json")) as f:
             routing = json.load(f)
@@ -104,6 +106,21 @@ def main():
         die("--cwd %s is not a directory" % a.cwd)
     if not os.path.isfile(a.prompt_file):
         die("--prompt-file %s is not a file" % a.prompt_file)
+
+    try:
+        with open(a.prompt_file) as f:
+            brief = f.read()
+    except Exception as e:
+        die("cannot read --prompt-file %s: %s" % (a.prompt_file, e))
+    rules_path = os.path.join(root, "RULES.md")
+    try:
+        with open(rules_path) as f:
+            rules = f.read().strip()
+    except Exception as e:
+        die("cannot read %s: %s" % (rules_path, e))
+    if not rules:
+        die("%s is empty" % rules_path)
+    full = rules + "\n\n---\n\n" + role_body(root, a.role) + "\n\n---\n\n" + brief
 
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     reports = os.path.join(log_dir(), "reports")
@@ -124,12 +141,6 @@ def main():
              "role": a.role, "model": route["model"], "tool": "codex-run",
              "kind": a.kind, "report": report}
     write_log(dict(entry, decision="launch"))
-    try:
-        with open(a.prompt_file) as f:
-            brief = f.read()
-    except Exception as e:
-        die("cannot read --prompt-file %s: %s" % (a.prompt_file, e))
-    full = role_body(root, a.role) + "\n\n---\n\n" + brief
     try:
         rc = subprocess.run(argv, input=full.encode(), stdout=sys.stderr).returncode
     except FileNotFoundError:

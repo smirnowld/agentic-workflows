@@ -25,11 +25,18 @@ report=$("$tool" --role implementer --kind specified --cwd "$tmp/work" --prompt-
 echo "specified primary: $(argv)"
 [ "$(argv)" = "exec -C $tmp/work -m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -s workspace-write -o $report - " ] || bad "unexpected argv for specified primary"
 [ "$(cat "$report")" = "final message" ] || bad "report file lacks the final message"
-# The prompt codex receives starts with the role body and ends with the brief.
+# The prompt codex receives: RULES.md, then the role body, then the brief.
 body=$(awk 'f>=2{print} /^---$/{f++}' "$root/agents/implementer.md" | sed '1{/^$/d;}')
 first=$(printf '%s\n' "$body" | head -n 1)
-[ "$(head -n 1 "$tmp/stdin")" = "$first" ] && [ -n "$first" ] || bad "stdin does not start with the implementer body"
-case $(head -n 1 "$tmp/stdin") in ---*) bad "frontmatter leaked into the prompt" ;; esac
+rules_first=$(head -n 1 "$root/RULES.md")
+[ "$(head -n 1 "$tmp/stdin")" = "$rules_first" ] && [ -n "$rules_first" ] || bad "stdin does not start with RULES.md"
+grep -q '^name: implementer$' "$tmp/stdin" && bad "frontmatter leaked into the prompt"
+rules_last=$(grep -v '^[[:space:]]*$' "$root/RULES.md" | tail -n 1)
+grep -qxF -- "$rules_last" "$tmp/stdin" || bad "RULES.md text missing from stdin"
+rules_line=$(grep -nxF -- "$rules_last" "$tmp/stdin" | head -n 1 | cut -d: -f1)
+body_line=$(grep -nxF -- "$first" "$tmp/stdin" | tail -n 1 | cut -d: -f1)
+brief_line=$(grep -nx 'do the thing' "$tmp/stdin" | tail -n 1 | cut -d: -f1)
+[ -n "$rules_line" ] && [ -n "$body_line" ] && [ "$rules_line" -lt "$body_line" ] && [ "$body_line" -lt "$brief_line" ] || bad "order is not RULES.md, role body, brief"
 [ "$(tail -n 1 "$tmp/stdin")" = "do the thing" ] || bad "brief not at the end of stdin"
 grep -q 'commit, push' "$tmp/stdin" || bad "implementer rules missing from stdin"
 
@@ -54,6 +61,18 @@ rm -f "$tmp/argv"
 "$tool" --role implementer --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1; [ $? = 2 ] || bad "missing --kind should exit 2"
 "$tool" --role reviewer --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1; [ $? = 2 ] || bad "claude-only role should exit 2"
 "$tool" --role implementer --kind specified --cwd "$tmp/nope" --prompt-file "$tmp/prompt" >/dev/null 2>&1; [ $? = 2 ] || bad "missing cwd should exit 2"
+
+# A missing or empty RULES.md: exit 2, codex not run, no launch logged.
+mkdir "$tmp/plug" && cp -R "$root/bin" "$root/agents" "$root/routing.json" "$tmp/plug/"
+rm -f "$tmp/argv"; rm -rf "$tmp/log2"
+AGENTIC_LOG_DIR="$tmp/log2" "$tmp/plug/bin/codex-run" --role implementer --kind specified --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>"$tmp/err"; rc=$?
+[ "$rc" = 2 ] && grep -q 'RULES.md' "$tmp/err" && [ ! -e "$tmp/argv" ] && [ ! -e "$tmp/log2/launch-log.jsonl" ] || bad "missing RULES.md: rc=$rc"
+: > "$tmp/plug/RULES.md"
+"$tmp/plug/bin/codex-run" --role implementer --kind specified --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>"$tmp/err"; rc=$?
+[ "$rc" = 2 ] && grep -q 'empty' "$tmp/err" && [ ! -e "$tmp/argv" ] || bad "empty RULES.md: rc=$rc"
+# A symlinked launcher still finds the plugin root.
+cp "$root/RULES.md" "$tmp/plug/RULES.md"; ln -s "$tmp/plug/bin/codex-run" "$tmp/link"
+"$tmp/link" --role implementer --kind specified --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1 && [ -e "$tmp/argv" ] || bad "symlinked launcher failed"
 
 # Codex failing passes its exit code through and still prints the report path.
 out=$(FAKE_CODEX_EXIT=3 "$tool" --role implementer --kind specified --cwd "$tmp/work" --prompt-file "$tmp/prompt" 2>/dev/null); rc=$?

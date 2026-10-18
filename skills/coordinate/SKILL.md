@@ -9,7 +9,7 @@ You take one work item from the brief you were started with. You coordinate suba
 2. **Route.** Read `routing.json` and take the brief's "Implementer kind" (trivial, specified, symptom-bug, native-mobile).
    - Every routed role launch (implementer, tester, reviewer, visual-reviewer, critical-reviewer, critical-reviewer-strongest) uses the Agent tool with `subagent_type` `agentic-workflows:ROLE` and `model` from the route; the launch check denies a routed launch with another model. Effort comes from the agent file.
    - Claude family: launch `agentic-workflows:implementer` that way.
-   - Codex family: write only the brief and slice to a prompt file (`codex-run` prepends the role's instructions), then run
+   - Codex family: write only the brief and slice to a prompt file (`codex-run` adds RULES.md and the role's instructions, so don't paste the rules in), then run
      `codex-run --role implementer --kind KIND --cwd WORKTREE --prompt-file FILE`
      It prints the path of a report file; read it.
    - `codex-run` and `wait-for` are on PATH from the plugin's `bin/`; call them by bare name.
@@ -17,7 +17,7 @@ You take one work item from the brief you were started with. You coordinate suba
 4. **Check the work.** The report is not proof. Read the diff and run the brief's proof yourself.
 5. **Test.** If the change touches something that runs (a workflow, a job, a service, a screen), run the `agentic-workflows:tester` agent on the real thing and keep its run link, timings and resources.
 6. **Review.** Every change gets an independent read-only review: the `agentic-workflows:reviewer` agent (and `agentic-workflows:visual-reviewer` for screens). A critical change (criteria in RULES.md) gets the critical reviewer from the other family than the implementer:
-   - Claude implemented: `codex-run --role critical-reviewer --cwd WORKTREE --prompt-file FILE` (read-only; the prompt file holds only the brief and the change to review, `codex-run` adds the role's instructions).
+   - Claude implemented: `codex-run --role critical-reviewer --cwd WORKTREE --prompt-file FILE` (read-only; the prompt file holds only the brief and the change to review, `codex-run` adds RULES.md and the role's instructions, so don't paste the rules in).
    - Codex implemented: the `agentic-workflows:critical-reviewer` agent, with `model` from the route.
    Use the strongest critical reviewer (`critical-reviewer-strongest`, same two routes, from the other family as above) instead when the brief's Risk says "critical, a revert can't undo it", or when the critical reviewer's closing line says a revert cannot undo a harm that reaches production data, backups, secrets or credentials, money, or real people's data. Never lower what the brief set.
    Reviewers never fix. Fix blocking findings with the implementer, then have the reviewer confirm the fix.
