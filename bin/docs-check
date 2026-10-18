@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""CI checks that keep documentation from drifting. Any repository can run it.
+
+  docs-check touched --base REF [--globs GLOB,GLOB]
+  docs-check budget [--file docs-budget.json]
+
+touched passes when the diff from REF to HEAD changes a file matching the docs
+globs, or when the pull request body (environment variable PR_BODY) has a line
+starting "No docs change:" followed by a reason. Otherwise it fails.
+
+budget reads {"globs": [...], "max_lines": N} and fails when the files tracked
+by git that match the globs have more than N lines in total.
+
+The default docs globs are "*.md" and "docs/**". A glob matches the whole path;
+"*" also matches "/".
+"""
+import fnmatch
+import os
+import re
+import subprocess
+import sys
+
+DEFAULT_GLOBS = ["*.md", "docs/**"]
+
+
+def matches(path, globs):
+    return any(fnmatch.fnmatchcase(path, g) for g in globs)
+
+
+def git(*args):
+    r = subprocess.run(["git"] + list(args), capture_output=True, text=True)
+    if r.returncode != 0:
+        sys.stderr.write("docs-check: git %s failed: %s\n" % (" ".join(args), r.stderr.strip()))
+        sys.exit(2)
+    return r.stdout
+
+
+def usage():
+    sys.stderr.write(__doc__)
+    sys.exit(64)
+
+
+def touched(args):
+    base, globs = None, DEFAULT_GLOBS
+    while args:
+        a = args.pop(0)
+        if a == "--base" and args:
+            base = args.pop(0)
+        elif a == "--globs" and args:
+            globs = [g for g in args.pop(0).split(",") if g]
+        else:
+            usage()
+    if not base:
+        usage()
+    changed = [p for p in git("diff", "--name-only", "-z", base, "HEAD").split("\0") if p]
+    hit = [p for p in changed if matches(p, globs)]
+    if hit:
+        print("docs touched: %s" % ", ".join(hit[:5]))
+        return 0
+    for line in os.environ.get("PR_BODY", "").splitlines():
+        m = re.match(r"No docs change:(.*)$", line.rstrip("\r"))
+        if m and m.group(1).strip():
+            print("no docs change, reason given: %s" % m.group(1).strip())
+            return 0
+    sys.stderr.write(
+        "This change touches no documentation (files matching: %s).\n"
+        "Pass in one of two ways:\n"
+        "  1. change a documentation file in this pull request, or\n"
+        "  2. add a line to the pull request description that starts with\n"
+        '     "No docs change:" followed by the reason.\n' % ", ".join(globs)
+    )
+    return 1
+
+
+def budget(args):
+    path = "docs-budget.json"
+    while args:
+        a = args.pop(0)
+        if a == "--file" and args:
+            path = args.pop(0)
+        else:
+            usage()
+    import json
+    try:
+        cfg = json.load(open(path))
+        globs, limit = cfg["globs"], int(cfg["max_lines"])
+    except (OSError, ValueError, KeyError) as e:
+        sys.stderr.write("docs-check: cannot read budget file %s: %s\n" % (path, e))
+        return 2
+    sizes = []
+    for p in git("ls-files", "-z").split("\0"):
+        if p and matches(p, globs) and os.path.isfile(p):
+            with open(p, "rb") as f:
+                sizes.append((sum(1 for _ in f), p))
+    total = sum(n for n, _ in sizes)
+    if total <= limit:
+        print("docs budget ok: %d of %d lines" % (total, limit))
+        return 0
+    sys.stderr.write("Documentation is over its budget: %d lines, limit %d.\n"
+                     "Merge or delete text to get under it. Largest files:\n" % (total, limit))
+    for n, p in sorted(sizes, reverse=True)[:5]:
+        sys.stderr.write("  %6d  %s\n" % (n, p))
+    return 1
+
+
+def main():
+    if len(sys.argv) < 2:
+        usage()
+    cmd, rest = sys.argv[1], sys.argv[2:]
+    if cmd == "touched":
+        return touched(rest)
+    if cmd == "budget":
+        return budget(rest)
+    usage()
+
+
+sys.exit(main())

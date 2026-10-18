@@ -16,13 +16,15 @@ A heading that counts: how many items need the maintainer, how many finished, si
 
 **Needs you.** Only the maintainer's decisions and steps, oldest first.
 
+- A P1 notice: every open item whose Priority is P1 shows first, as one line, "P1 now: TITLE (LINK). Lower it?". Notices take effect at once, don't count in the heading's count, and leave the page once the item is closed or no longer P1.
+
 - A decision shows the effect, the recommendation with who reviewed it, and the exact line to reply with.
 - A fence change shows who gains or loses which right and the proof before and after, never a diff.
 - A step (something only the maintainer can do, like placing a secret) shows a deadline and links to the item with the instructions.
 
 **Finished.** One line per item, in plain words, saying what changed for the maintainer or their users, with the pull request a click away. No numbers standing in for words.
 
-**Moving, or stuck.** Only what has waited longer than expected, with what it waits for.
+**Moving, or stuck.** Only what has waited longer than expected, with what it waits for. It also lists the findings of `board-drift` for the track's board and repositories: closed items not marked done, open pull requests not on the board, and In progress items with no update for the script's `--stale-days`. That setting covers In progress items only; the expected-wait rule covers Waiting items, so nothing is listed twice. Without the `read:project` scope the script exits 2 and the list shows as "not available". An open issue whose sub-issues are all closed (a finished phase or initiative) is worded as one plain line: all its parts are closed, close it or plan the next phase.
 
 **Measures.** One line: merged, reverted, lead tokens per merged outcome, paid minutes used against the month's budget.
 
@@ -36,7 +38,7 @@ The maintainer answers in the lead's chat, on the laptop or on the phone. The le
 |---|---|
 | Needs you | Board items whose next actor is the maintainer: decisions and maintainer steps |
 | Finished | Pull requests merged and issues closed since the last build, in the track's repositories |
-| Moving, or stuck | Board items in progress whose last activity is older than the item's expected wait |
+| Moving, or stuck | Waiting board items whose last activity is older than the item's expected wait; the findings of `board-drift` |
 | Measures | The code host's merges and reverts, the launch log, the billing usage |
 
 ## Checks before publishing

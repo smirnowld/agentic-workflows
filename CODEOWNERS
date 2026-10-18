@@ -4,6 +4,7 @@
 /hooks/ @smirnowld
 /bin/ @smirnowld
 /Makefile @smirnowld
+/docs-budget.json @smirnowld
 /routing.json @smirnowld
 /RULES.md @smirnowld
 /agents/ @smirnowld
