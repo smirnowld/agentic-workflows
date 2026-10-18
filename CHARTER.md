@@ -1,6 +1,6 @@
 # Charter
 
-How one person runs many projects with agents doing the work. This is the second version of the setup: the first (1.0) is input, evidence of what worked and what didn't, not a base to edit. Project details, hosts, costs and trial logs are kept privately.
+How one person runs many projects with agents doing the work. This is the second version of the setup (2.0). The first (1.0) is input, evidence of what worked and what didn't, not a base to edit. Project details, hosts, costs and trial logs are kept privately.
 
 ## Purpose
 
@@ -29,7 +29,7 @@ The maintainer works like the CEO/CTO of a 200–500 person company: vision, str
 | Maintainer actions that are mechanical (copy-pasted commands, rubber-stamped merges and approvals, reading tactical detail) | near zero |
 | Share of maintainer decisions that are about direction (vision, users, roadmap, design, standards) | most of them |
 | Outcomes shipped per week, by track | up |
-| Tokens per shipped outcome, within the Max and Codex budgets | down |
+| Tokens per shipped outcome, within the Claude and Codex subscription budgets | down |
 | Reverts, escaped defects, incidents | not up |
 | Updates the maintainer can understand cold, without opening anything (rated yes/no) | nearly all |
 
@@ -72,7 +72,7 @@ A mechanism checks this, a review step on generated reports, and the maintainer'
 
 The full delegation table is a later document. Its principles:
 
-- **Agents decide, act and merge:** work inside the fence, including running commands and using the secrets their identity holds, with checks green and independent review passed. It appears in the feed.
+- **Agents decide, act and merge:** work inside the fence (the limits that mechanisms enforce: access rights, admission policies, rulesets, scoped identities), including running commands and using the secrets their identity holds, with checks green and independent review passed. It appears in the feed.
 - **The maintainer decides:**
   - direction: vision, roadmap, users, design taste, the maintainer's own touch points, high-impact standards;
   - starting and stopping tracks;
@@ -108,7 +108,6 @@ The full delegation table is a later document. Its principles:
 Work is split into tracks by purpose, not by host: a track's context is what its agents need to know. Each track gets a lead and moves from 1.0 to this setup on its own, starting with a pilot track, gated on evidence that the new setup does better. 1.0 keeps running for every track that hasn't moved. The list of tracks and the schedule are kept privately.
 
 ## Open questions
-
 
 1. Does a lead per track cost less than 1.0's coordination?
 2. Which jobs go to Codex? To be settled by side-by-side runs and the 1.0 trials' results.
