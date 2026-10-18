@@ -15,8 +15,8 @@ Three words recur. A **track** is one area of work, split by purpose rather than
 
 ## Sessions and roles
 
-- A track has one lead ([docs/lead.md](docs/lead.md)). It plans, writes briefs, starts one session per work package and checks their evidence. It never edits; its folder's settings deny the edit tools.
-- A package session takes one work package from one brief, in its own worktree. It coordinates subagents, checks their evidence, merges inside the fence and reports back in a few lines.
+- A track has one lead ([docs/lead.md](docs/lead.md)). It plans, writes briefs, starts one session per work item and checks their evidence. It never edits; its folder's settings deny the edit tools.
+- A coordinator takes one work item from one brief, in its own worktree. It coordinates subagents, checks their evidence, merges inside the fence and reports back in a few lines.
 - Each role's model comes from [routing.json](routing.json) ([docs/routing.md](docs/routing.md)). A launch check refuses a Claude launch whose model the role's route doesn't allow; effort comes from the role's agent file, and for Codex from the route.
 - Use the shipped helpers (waiting, launching Codex) rather than hand-written loops.
 - Each role starts with only the context its job needs: its agent file, the brief and the files the brief names. A lead that is waiting sleeps until something wakes it rather than polling.

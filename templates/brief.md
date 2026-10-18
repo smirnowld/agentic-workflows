@@ -1,8 +1,8 @@
 # Brief: TITLE
 
-<!-- One work package for one package session, written by the lead. Conclusions, not reasoning: the receiver never needs the lead's chat. The one brief format; plans live in the initiative's parent issue. -->
+<!-- One work item for one coordinator, written by the lead. Conclusions, not reasoning: the receiver never needs the lead's chat. The one brief format; plans live in the initiative's parent issue. -->
 
-**Work package:** LINK to its issue, which the pull request closes
+**Work item:** LINK to its issue, which the pull request closes
 **Repository and base:** OWNER/REPO, from main
 **Risk:** low | normal | critical | critical, a revert can't undo it: WHAT A MISTAKE WOULD DO  <!-- the last option means the strongest critical reviewer: a revert can't undo the harm and it reaches production data, backups, secrets or credentials, money, or real people's data -->
 **Implementer kind:** trivial | specified | symptom-bug | native-mobile  <!-- the route's key in routing.json -->

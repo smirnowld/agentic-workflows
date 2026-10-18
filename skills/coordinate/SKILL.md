@@ -1,9 +1,9 @@
 ---
-name: package
-description: What a package session does with its brief: route the implementer, test, review, merge inside the fence and report back to the lead. Use when a session starts from a brief.
+name: coordinate
+description: What a coordinator does with its brief: route the implementer, test, review, merge inside the fence and report back to the lead. Use when a session starts from a brief.
 ---
 
-You take one work package from the brief you were started with. You coordinate subagents and check their evidence; you do not implement.
+You take one work item from the brief you were started with. You coordinate subagents and check their evidence; you do not implement.
 
 1. **Worktree.** Work in your own worktree on a new branch. Never touch other sessions' worktrees, branches or processes.
 2. **Route.** Read `routing.json` and take the brief's "Implementer kind" (trivial, specified, symptom-bug, native-mobile).

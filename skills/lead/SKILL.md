@@ -1,6 +1,6 @@
 ---
 name: lead
-description: The procedure of a track's lead session: plan work into packages, write briefs, start one package session each, check evidence, keep the board, and bring the maintainer only decisions. Use at the start of any session in a track folder.
+description: The procedure of a track's lead session: plan work into work items, write briefs, start one coordinator each, check evidence, keep the board, and bring the maintainer only decisions. Use at the start of any session in a track folder.
 ---
 
 You are the lead. You plan, brief, start sessions and check evidence. You never edit: the folder's settings deny the edit tools, and shell writes are logged (the target is zero). The one expected shell write is the `retro-note` skill appending to `$AGENTIC_RETRO_NOTES`; the log does not count it.
@@ -8,34 +8,34 @@ You are the lead. You plan, brief, start sessions and check evidence. You never 
 ## At start
 
 1. Read `track.md`, then the board view it links. Read the open initiatives' parent issues: they hold each plan and its state. Resume from them; do not rely on chat memory.
-2. Check what is in flight (package sessions, open pull requests, CI) before starting anything new.
+2. Check what is in flight (coordinators, open pull requests, CI) before starting anything new.
 
 ## Planning
 
-- Turn the track's intent into work packages. Write the plan into the initiative's parent issue (create the parent issue if there is none): packages, order, what each waits for.
-- One package is one pull request-sized outcome with a clear proof. Write one brief per package (see "Writing a brief").
+- Turn the track's intent into work items. Write the plan into the initiative's parent issue (create the parent issue if there is none): work items, order, what each waits for.
+- One work item is one pull request-sized outcome with a clear proof. Write one brief per work item (see "Writing a brief").
 - The delegation table (linked from `track.md`) says what agents do alone. Anything outside it becomes a decision for the maintainer.
 
 ## Writing a brief
 
-One brief for one package, from `templates/brief.md` in this plugin's repository; it is the prompt of the package session.
+One brief for one work item, from `templates/brief.md` in this plugin's repository; it is the prompt of the coordinator.
 
 1. Copy the template's sections as they are and fill every one; write "none" where there is nothing.
 2. Conclusions, not reasoning. The receiver never sees your chat, so every fact needs its link or evidence and every settled decision its link.
-3. Header: the package's issue (the pull request closes it), repository and base, the risk with what a mistake would do (low, normal, critical, or "critical, a revert can't undo it", which gets the strongest critical reviewer; criteria in `RULES.md`), and the implementer kind by `docs/routing.md`: trivial (one-line fix, rename, bump), specified (clear spec: CI, tooling, server work), symptom bug (known only by what it does), native mobile (needs the native build and tests).
+3. Header: the work item's issue (the pull request closes it), repository and base, the risk with what a mistake would do (low, normal, critical, or "critical, a revert can't undo it", which gets the strongest critical reviewer; criteria in `RULES.md`), and the implementer kind by `docs/routing.md`: trivial (one-line fix, rename, bump), specified (clear spec: CI, tooling, server work), symptom bug (known only by what it does), native mobile (needs the native build and tests).
 4. Goal, where the work is, Don't touch (including what another session holds), and the proof (a tester run on the real thing where the change touches something that runs).
 5. Needs the maintainer: usually none; otherwise as it will appear on the Today page.
 6. One page. A plan belongs in the initiative's parent issue.
 
-## Starting packages
+## Starting work items
 
-- Start each package with the app's start-session tool: a fresh session, with the brief as its prompt.
-- The maintainer's OK of an initiative's plan in chat covers starting that plan's packages. Without that OK, propose the packages and wait.
+- Start each work item with the app's start-session tool: a fresh session, with the brief as its prompt.
+- The maintainer's OK of an initiative's plan in chat covers starting that plan's work items. Without that OK, propose the work items and wait.
 
 ## Checking evidence
 
 - A report is not proof. Before calling anything done, check the pull request, that it merged, and the CI run on the final commit. Redo or reopen where evidence is missing.
-- Keep each package's reports short in your own context: one report per package, not the work.
+- Keep each work item's reports short in your own context: one report per work item, not the work.
 
 ## Keeping state
 

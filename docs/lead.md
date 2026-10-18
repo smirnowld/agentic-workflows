@@ -7,11 +7,11 @@ Each track has one lead: a Claude session that turns the track's intent into wor
 | Who | Does | Holds |
 |---|---|---|
 | Maintainer | Sets direction, answers the decisions on the Today page | |
-| Lead | Plans, writes briefs, starts one session per work package, checks their evidence, keeps the board | the track brief, the board, short reports |
-| Package session | One work package from one brief, in its own worktree: coordinates, verifies, merges inside the fence | the brief and the package's files |
+| Lead | Plans, writes briefs, starts one session per work item, checks their evidence, keeps the board | the track brief, the board, short reports |
+| Coordinator | One work item from one brief, in its own worktree: coordinates, verifies, merges inside the fence | the brief and the work item's files |
 | Subagents | Implementer, tester, explorer, reviewers | only their own slice |
 
-The lead starts package sessions, not implementers. A package session runs its own subagents and sends back a few lines: what changed, the proof, what needs the maintainer. The lead's context grows by one short report per package, not by the work itself.
+The lead starts coordinators, not implementers. A coordinator runs its own subagents and sends back a few lines: what changed, the proof, what needs the maintainer. The lead's context grows by one short report per work item, not by the work itself.
 
 ## The track folder
 

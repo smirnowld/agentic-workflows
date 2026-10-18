@@ -1,7 +1,7 @@
 #!/bin/sh
 # Wait on GitHub until a PR's CI, a PR's merge or a workflow run ends, and
 # always end: on success, on failure and on any state it cannot read. Run it
-# as a background task so its exit wakes the session (the package skill).
+# as a background task so its exit wakes the session (the coordinate skill).
 #
 #   wait-for [-R OWNER/REPO] [--deadline MINUTES] pr-ci PR
 #   wait-for [-R OWNER/REPO] [--deadline MINUTES] pr-merged PR
@@ -166,7 +166,7 @@ pr-ci)
   pr_state
   sha=$head auto0=$auto
   read_gh base gh pr view "$target" --json baseRefName --jq .baseRefName
-  # The required checks pinned to GitHub Actions (the package skill).
+  # The required checks pinned to GitHub Actions (the coordinate skill).
   read_gh checks gh api "repos/{owner}/{repo}/rules/branches/$base" --jq \
     '[.[] | select(.type=="required_status_checks") | .parameters.required_status_checks[] | select(.integration_id==15368) | .context] | if length == 0 then "none" else join("\n") end'
   [ "$checks" != none ] || finish 5 "unknown: $base requires no GitHub Actions check to wait on"
