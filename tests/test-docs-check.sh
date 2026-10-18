@@ -10,7 +10,7 @@ check() { # check NAME EXPECTED_EXIT ACTUAL_EXIT
   if [ "$2" = "$3" ]; then echo "ok: $1"; else echo "FAIL: $1 (exit $3, wanted $2)"; fail=1; fi
 }
 cd "$tmp" || exit 1
-git init -q . && git config user.email t@example.invalid && git config user.name t
+git init -q . && git config user.email t@t && git config commit.gpgsign false && git config user.name t
 mkdir docs src
 echo code > src/a.c; echo hi > README.md; echo one > docs/x.md
 git add -A && git commit -qm base && base=$(git rev-parse HEAD)
