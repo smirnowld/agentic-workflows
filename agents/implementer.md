@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: Implements one bounded slice and its focused tests for a work item. Used by the coordinator for the Claude route of the implementer kinds in routing.json; bin/codex-run prepends this file's instructions for the Codex route.
+description: Implements one bounded slice and its focused tests for a work item. Used by the coordinator for the Claude route of the implementer kinds in routing.json; bin/codex-run adds RULES.md and this file's instructions to the prompt for the Codex route, so the coordinator doesn't paste the rules in.
 tools: Read, Grep, Glob, Bash, Edit, Write, NotebookEdit
 model: sonnet
 effort: medium

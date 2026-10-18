@@ -50,6 +50,12 @@ How many sessions I touch is not a measure.
 
 ## Using it
 
-1. Add this repository as a plugin marketplace in Claude Code and install the `agentic-workflows` plugin for the project, not for your whole account, so sessions in other projects don't get these rules. Enable it in each project's `.claude/settings.json` (`enabledPlugins`); the track folder template already does.
-2. In each project, point `AGENTS.md` at [RULES.md](RULES.md) and add the project's own delegation table and rules.
-3. Make a track folder from [templates/track/](templates/track/) and start a session in it: that session is the track's lead.
+1. **Install.** Once per machine, `claude plugin marketplace add OWNER/agentic-workflows` (OWNER is the account this repository lives under). Then `"agentic-workflows@agentic-workflows": true` under `enabledPlugins` in the project's `.claude/settings.json` loads the plugin; no install command is needed ([plugin loading](https://code.claude.com/docs/en/plugins/loading.md)). If another plugin that brings its own rules is on for my whole account, I turn it off in that project's `.claude/settings.json` (`"NAME@MARKETPLACE": false`); project settings win over user settings.
+2. **AGENTS.md.** Its first line says the project runs on agentic-workflows and links [RULES.md](https://github.com/OWNER/agentic-workflows/blob/main/RULES.md) by its full GitHub URL, because relative links don't work across repositories. Then come the project's own rules and a link to its delegation table. For example:
+
+   ```
+   This project runs on [agentic-workflows](https://github.com/OWNER/agentic-workflows): its rules are [RULES.md](https://github.com/OWNER/agentic-workflows/blob/main/RULES.md).
+   ```
+
+3. **Codex.** It reads the project's `AGENTS.md` and a global `~/.codex/AGENTS.md`. If the global file carries another setup's rules, I put an exception at its top for projects whose `AGENTS.md` says they run on agentic-workflows. Codex gets RULES.md and its role's text from `bin/codex-run`, which puts them at the start of every prompt.
+4. **Track folder.** I make it outside any repository, so the lead has no checkout to edit, from [templates/track/](templates/track/), and list in it the main checkouts the lead reads. A session started there is the track's lead.

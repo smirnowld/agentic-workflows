@@ -15,7 +15,7 @@ The lead starts coordinators, not implementers. A coordinator runs its own subag
 
 ## The track folder
 
-A session started in the track's folder is that track's lead. Nothing needs typing: the folder's instructions and settings make it so.
+The folder lives outside any repository, so the lead has no checkout to edit. A session started in it is that track's lead. Nothing needs typing: the folder's instructions and settings make it so.
 
 ```
 TRACK/
@@ -24,7 +24,7 @@ TRACK/
   track.md                # intent, repositories, links: delegation table, runbooks, board, parent issues
 ```
 
-The track's repositories are added as read-only directories, at their main branches. The lead has no worktree. Its settings deny the edit tools, which the app enforces. A shell write is still possible, so the launch log counts the lead's writes from day one; the target is zero.
+The track's repositories are added as read-only directories, the main checkouts at their main branches. The lead has no worktree. Its settings deny the edit tools, which the app enforces. A shell write is still possible, so the launch log counts the lead's writes from day one; the target is zero.
 
 [templates/track/](../templates/track/) holds a starting copy.
 
