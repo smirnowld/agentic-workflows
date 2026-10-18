@@ -70,6 +70,26 @@ for c in 'echo x > /dev/null' 'ls 2> /dev/null | cat' 'echo "rm a > b"' "echo 'g
   bash_json "$tmp/track" "$c" >/dev/null
   [ ! -s "$log" ] || bad "'$c' wrongly logged as a lead write"
 done
+# Written as writes: sh -c arguments, commands after a heredoc with an apostrophe, .. escapes, git writes.
+for c in 'bash -c "rm -rf x"' "sh -c 'echo x > f'" "zsh -c 'touch f'" 'cat <<EOF
+it'"'"'s fine
+EOF
+rm a' 'cat <<-"END"
+x
+	END
+touch f' 'cat >> "$AGENTIC_RETRO_NOTES/../x.md"' 'git tag v1' 'git stash' 'git stash pop' 'git checkout -- f'; do
+  : > "$log"
+  bash_json "$tmp/track" "$c" >/dev/null
+  grep -q '"decision": "lead-write"' "$log" || bad "'$c' not logged as a lead write"
+done
+# Reads: a heredoc body's text, read-only git forms.
+for c in 'cat <<EOF
+rm a > b
+EOF' 'git tag' 'git tag -l' 'git tag --list "v*"' 'git stash list' 'git stash show' 'git -C /x tag -l'; do
+  : > "$log"
+  bash_json "$tmp/track" "$c" >/dev/null
+  [ ! -s "$log" ] || bad "'$c' wrongly logged as a lead write"
+done
 # The command text never reaches the log.
 : > "$log"
 bash_in "$tmp/track" "echo SECRETWORD > f" >/dev/null

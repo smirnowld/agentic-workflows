@@ -39,8 +39,27 @@ WRITE_PATTERNS = [
     ("rm", re.compile(START + r"rm(\s|$)")),
     ("mkdir", re.compile(START + r"mkdir(\s|$)")),
     ("touch", re.compile(START + r"touch(\s|$)")),
-    ("git write", re.compile(START + r"git\s+(-\S+\s+|-[Cc]\s+\S+\s+)*(commit|push|apply|add|rm|mv|reset|checkout|switch|merge|rebase|cherry-pick|revert|tag|stash|restore|clean|pull|am)(\s|$)")),
 ]
+
+
+GIT = re.compile(START + r"git\s+(?:-[Cc]\s+\S+\s+|-\S+\s+)*([a-z][a-z-]*)(?:[ \t]+([^\s;&|]+))?")
+GIT_WRITES = {"commit", "push", "apply", "add", "rm", "mv", "reset", "checkout", "switch", "merge",
+              "rebase", "cherry-pick", "revert", "tag", "stash", "restore", "clean", "pull", "am"}
+
+
+def git_writes(code):
+    """True when a git command in CODE writes; tag -l, a bare tag and
+    stash list/show only read."""
+    for m in GIT.finditer(code):
+        sub, arg = m.group(2), m.group(3)
+        if sub not in GIT_WRITES:
+            continue
+        if sub == "tag" and (arg is None or arg in ("-l", "--list")):
+            continue
+        if sub == "stash" and arg in ("list", "show"):
+            continue
+        return True
+    return False
 
 
 def log_path():
@@ -128,13 +147,29 @@ def check_agent(data, entry):
 
 
 RETRO = re.compile(r"(>>?|mkdir\s+(-\S+\s+)*)\s*[\"']?\$\{?AGENTIC_RETRO_NOTES\}?[^\s;&|]*[\"']?")
-QUOTED = re.compile(r"\"(?:\\.|[^\"\\])*\"|'[^']*'", re.S)
+HEREDOC = re.compile(r"(<<-?[ \t]*(['\"]?)(\w+)\2[^\n]*)\n.*?\n[ \t]*\3[ \t]*(?:\n|$)", re.S)
+# A quoted string, but the one after sh/bash/zsh -c is a command and is kept.
+QUOTED = re.compile(
+    r"(?P<keep>(?:^|[\s;&|(])(?:ba|z)?sh\s+(?:-\S+\s+)*-c\s+)(?P<cmd>\"(?:\\.|[^\"\\])*\"|'[^']*')"
+    r"|\"(?:\\.|[^\"\\])*\"|'[^']*'", re.S)
+
+
+def _retro(m):
+    return m.group(0) if ".." in m.group(0) else " "
+
+
+def _quoted(m):
+    if m.group("cmd"):
+        return m.group("keep") + " " + m.group("cmd")[1:-1]
+    return '""'
 
 
 def code_of(cmd):
-    """The command without the retro-note skill's own writes (into
-    $AGENTIC_RETRO_NOTES) and without quoted text, which is not a command."""
-    return QUOTED.sub('""', RETRO.sub(" ", cmd))
+    """The command without heredoc bodies, the retro-note skill's own writes
+    (into $AGENTIC_RETRO_NOTES, never with ..) and quoted text, which is not a
+    command, except the argument of sh -c."""
+    cmd = HEREDOC.sub(lambda m: m.group(1) + "\n", cmd)
+    return QUOTED.sub(_quoted, RETRO.sub(_retro, cmd))
 
 
 def check_bash(data, entry):
@@ -144,6 +179,8 @@ def check_bash(data, entry):
     cmd = str((data.get("tool_input") or {}).get("command") or "")
     code = code_of(cmd)
     kinds = [name for name, rx in WRITE_PATTERNS if rx.search(code)]
+    if git_writes(code):
+        kinds.append("git write")
     if not kinds:
         return False
     entry.update(role="lead", decision="lead-write", detail=kinds)

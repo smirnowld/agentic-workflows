@@ -16,7 +16,7 @@ You take one work package from the brief you were started with. You coordinate s
 3. **Fallback.** If the first round fails (checks red, slice not done), relaunch once with the route's fallback: the same Claude call with the fallback model, or `codex-run ... --fallback`. Still failing: stop and report to the lead.
 4. **Check the work.** The report is not proof. Read the diff and run the brief's proof yourself.
 5. **Test.** If the change touches something that runs (a workflow, a job, a service, a screen), run the `agentic-workflows:tester` agent on the real thing and keep its run link, timings and resources.
-6. **Review.** Every change gets an independent read-only review: the `agentic-workflows:reviewer` agent (and `visual-reviewer` for screens). A critical change (criteria in RULES.md) gets the critical reviewer from the other family than the implementer:
+6. **Review.** Every change gets an independent read-only review: the `agentic-workflows:reviewer` agent (and `agentic-workflows:visual-reviewer` for screens). A critical change (criteria in RULES.md) gets the critical reviewer from the other family than the implementer:
    - Claude implemented: `codex-run --role critical-reviewer --cwd WORKTREE --prompt-file FILE` (read-only; the prompt file holds only the brief and the change to review, `codex-run` adds the role's instructions).
    - Codex implemented: the `agentic-workflows:critical-reviewer` agent, with `model` from the route.
    Reviewers never fix. Fix blocking findings with the implementer, then have the reviewer confirm the fix.

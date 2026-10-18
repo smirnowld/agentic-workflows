@@ -6,6 +6,8 @@ Each role runs on the model that measured best for its job. [routing.json](../ro
 
 One implementer role, four kinds of task. The package session picks the kind from the brief and launches the primary model; after one failed round it relaunches with the fallback.
 
+Effort here is what the Codex routes pass. A Claude route runs at its agent file's effort (medium for the implementer), whatever the table says.
+
 | Kind (key in routing.json) | Examples | Primary | After a failed round |
 |---|---|---|---|
 | Trivial (`trivial`) | a one-line fix, a rename, a version bump | Sonnet, low | Codex Sol, low |

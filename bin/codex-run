@@ -134,9 +134,9 @@ def main():
     except FileNotFoundError:
         write_log(dict(entry, decision="error", error="codex not found on PATH"))
         die("codex is not on PATH")
-    write_log(dict(entry, decision="finished", exit_code=rc))
     if rc < 0:  # killed by a signal: the shell's convention
         rc = 128 - rc
+    write_log(dict(entry, decision="finished", exit_code=rc))
     if rc == 0 or os.path.isfile(report):
         print(report)
     return rc

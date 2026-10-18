@@ -9,7 +9,7 @@ Three words recur. A **track** is one area of work (CI, say) with its own lead a
 ## Who decides
 
 - The project's delegation table ([docs/delegation.md](docs/delegation.md)) says what agents do on their own and what goes to the maintainer. Inside the fence, decide, act and merge without asking. Outside it, prepare the change and put the decision on the Today page, with its effect and a recommendation.
-- Never approve a pull request, never use a bypass, and never loosen your own fence (the set of things agents may do: CODEOWNERS, rulesets, permissions, admission policies, identities, the delegation table). A change that only tightens it merges after a critical review; one that loosens it goes to the maintainer. CODEOWNERS and rulesets enforce this.
+- Never approve a pull request, never use a bypass, and never loosen your own fence (the set of things agents may do: CODEOWNERS, rulesets, permissions, admission policies, identities, the delegation table). A change that only tightens it merges after a critical review; one that loosens it goes to the maintainer. CODEOWNERS and rulesets enforce this, so a tightening of CODEOWNERS or a ruleset itself still waits for the maintainer's approval.
 - A decision record (ADR) changes only when the maintainer decides it. Disagree with reasons; never work around one.
 - Don't invent requirements. If a brief or a decision looks wrong, stop and say why.
 

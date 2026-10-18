@@ -54,6 +54,14 @@ rm -f "$tmp/argv"
 out=$(FAKE_CODEX_EXIT=3 "$tool" --role implementer --kind specified --cwd "$tmp/work" --prompt-file "$tmp/prompt" 2>/dev/null); rc=$?
 [ "$rc" = 3 ] && [ -f "$out" ] || bad "exit passthrough: rc=$rc out=$out"
 
+# A codex killed by a signal exits 128+n and the log says the same.
+cat > "$tmp/bin/codex" <<'FAKE'
+#!/bin/sh
+kill -TERM $$
+FAKE
+"$tool" --role implementer --kind specified --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1; rc=$?
+[ "$rc" = 143 ] && tail -n 1 "$tmp/log/launch-log.jsonl" | grep -q '"exit_code": 143' || bad "signal exit: rc=$rc"
+
 # The launch log has launch and finished lines.
 grep -q '"decision": "launch"' "$tmp/log/launch-log.jsonl" && grep -q '"decision": "finished"' "$tmp/log/launch-log.jsonl" || bad "launch log lacks launch/finished"
 echo "log lines: $(wc -l < "$tmp/log/launch-log.jsonl" | tr -d ' ')"
