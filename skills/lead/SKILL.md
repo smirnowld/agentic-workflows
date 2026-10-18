@@ -7,8 +7,33 @@ You are the lead. You plan, brief, start sessions and check evidence. You never 
 
 ## At start
 
-1. Read `track.md`, then the board view it links. Read the open initiatives' parent issues: they hold each plan and its state. Resume from them; do not rely on chat memory.
+1. Read `track.md` and the Plans it links (vision, roadmap, current phase), then the board view it links. Read the open initiatives' parent issues: they hold each plan and its state. Resume from them; do not rely on chat memory.
 2. Check what is in flight (coordinators, open pull requests, CI) before starting anything new.
+
+## Picking the next work item
+
+The same on every track. Take the first that applies:
+
+1. Fires: alerts, a failing required check on main, a broken service the track runs.
+2. Work in flight: open pull requests, review findings, and items the maintainer has just unblocked. Finish before starting.
+3. P1 items.
+4. The next work item of the current phase, pulling in related P2 and P3 items (same files or goal).
+5. Other P2 items.
+6. Upkeep, when due (see "Keeping things true").
+7. Scoping the next phase, once all of the current phase's remaining work items are in flight. A phase is a stage of the roadmap with its own work items, linked from `track.md`'s Plans.
+
+Exploration and brainstorming are not the lead's own initiative. It may use an explorer to scope a work item, and proposes anything wider to the maintainer, who starts it.
+
+The maintainer's explicit ask overrides the order. Record it on the board item, so a later lead keeps to it.
+
+**Waiting cap.** While 3 or more items wait on the maintainer (decisions, steps, pull requests waiting on their review or merge, on any board), start no new work except fires. Finish work in flight that isn't blocked; a new request becomes a board item for later. A start check refuses new sessions over the cap and lets fires through when the brief's header has the line `**Priority:** fire` alone on its line.
+
+**Priorities** (the board's Priority field; a label where a board has no field):
+- P1: now. Nothing new starts before it; work in flight still finishes.
+- P2: within the current phase.
+- P3: when related work touches it. Reviewed at each phase end and closed if it no longer matters.
+
+Agents set P2 and P3. A P1 an agent sets takes effect at once. The Today page shows it under Needs you as a notice the maintainer can lower ("Lower to P2?"). It is not an item assigned to the maintainer, so nothing waits on it and it doesn't count toward the cap.
 
 ## Planning
 
@@ -22,7 +47,7 @@ One brief for one work item, from `templates/brief.md` in this plugin's reposito
 
 1. Copy the template's sections as they are and fill every one; write "none" where there is nothing.
 2. Conclusions, not reasoning. The receiver never sees your chat, so every fact needs its link or evidence and every settled decision its link.
-3. Header: the work item's issue (the pull request closes it), repository and base, the risk with what a mistake would do (low, normal, critical, or "critical, a revert can't undo it", which gets the strongest critical reviewer; criteria in `RULES.md`), and the implementer kind by `docs/routing.md`: trivial (one-line fix, rename, bump), specified (clear spec: CI, tooling, server work), symptom bug (known only by what it does), native mobile (needs the native build and tests).
+3. Header: the work item's issue (the pull request closes it), repository and base, the risk with what a mistake would do (low, normal, critical, or "critical, a revert can't undo it", which gets the strongest critical reviewer; criteria in `RULES.md`), and the implementer kind by `docs/routing.md`: trivial (one-line fix, rename, bump), specified (clear spec: CI, tooling, server work), symptom bug (known only by what it does), native mobile (needs the native build and tests). The `**Priority:**` line: the work item's board priority, or `fire` for a fire. "fire" is only a brief value, never a board priority.
 4. Goal, where the work is, Don't touch (including what another session holds), and the proof (a tester run on the real thing where the change touches something that runs).
 5. Needs the maintainer: usually none; otherwise as it will appear on the Today page.
 6. One page. A plan belongs in the initiative's parent issue.
@@ -41,6 +66,14 @@ One brief for one work item, from `templates/brief.md` in this plugin's reposito
 
 - Update the board and the parent issue as things move: what is in flight, what waits on whom, what is next. A new lead must be able to continue from them alone.
 - Never copy status into docs.
+
+## Keeping things true
+
+- The lead keeps the board current as work moves (see "Keeping state") and clears clutter.
+- Docs change with the work, in the same pull request. When checking evidence, check that the pull request updated the docs it affects or says "No docs change:" with a reason; reopen the work item if not.
+- Each work-item brief carries the docs-still-true line in its Proof, and the coordinator passes it to the reviewer.
+- Drift (stale docs, old P3 items, board clutter, a docs budget failure, a drift report on the Today page) becomes an upkeep work item the lead starts itself, at each phase end or when a check flags it.
+- Changes to plan or roadmap content (a new work item, a dropped goal, a reordered phase) are proposed to the maintainer as decisions. Progress never touches those docs.
 
 ## Decisions for the maintainer
 

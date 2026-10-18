@@ -1,10 +1,18 @@
 # Track: NAME
 
-<!-- The lead reads this at every start. Intent and links only: status lives on the board. -->
+<!-- The lead reads this at every start. Intent, plans and links only: status lives on the board. -->
 
 ## Intent
 
-What this track is for, for whom, and how good it has to be. Three to five sentences, written by the maintainer.
+What is specific to this track: its scope, the projects involved and its limits. Three to five sentences, written by the maintainer.
+
+## Plans
+
+Where the track's direction lives; the lead reads these, never copies them here.
+
+- Vision: LINK
+- Roadmap: LINK
+- Current phase: LINK
 
 ## Repositories
 

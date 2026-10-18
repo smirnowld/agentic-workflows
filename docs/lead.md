@@ -13,6 +13,10 @@ Each track has one lead: a Claude session that turns the track's intent into wor
 
 The lead starts coordinators, not implementers. A coordinator runs its own subagents and sends back a few lines: what changed, the proof, what needs the maintainer. The lead's context grows by one short report per work item, not by the work itself.
 
+## What the lead picks next
+
+The [lead skill](../skills/lead/SKILL.md) sets the order, the same on every track: fires, work in flight, P1 items, the current phase's next work package (with related P2 and P3 items), other P2 items, upkeep, then scoping the next phase. The maintainer's explicit ask overrides it. While 3 or more items wait on the maintainer, only fires start. Docs change with the work, and drift becomes an upkeep work item the lead starts itself; changes to plan or roadmap content are proposed to the maintainer as decisions.
+
 ## The track folder
 
 The folder lives outside any repository, so the lead has no checkout to edit. A session started in it is that track's lead. Nothing needs typing: the folder's instructions and settings make it so.
@@ -21,7 +25,7 @@ The folder lives outside any repository, so the lead has no checkout to edit. A 
 TRACK/
   CLAUDE.md               # "You are the lead of TRACK": loads the lead skill, reads track.md
   .claude/settings.json   # denies the edit tools; turns on this plugin
-  track.md                # intent, repositories, links: delegation table, runbooks, board, parent issues
+  track.md                # intent (scope, projects, limits), plans, repositories, links: delegation table, runbooks, board, parent issues
 ```
 
 The track's repositories are added as read-only directories, the main checkouts at their main branches. The lead has no worktree. Its settings deny the edit tools, which the app enforces. A shell write is still possible, so the launch log counts the lead's writes from day one; the target is zero.

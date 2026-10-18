@@ -5,6 +5,7 @@
 **Work item:** LINK to its issue, which the pull request closes
 **Repository and base:** OWNER/REPO, from main
 **Risk:** low | normal | critical | critical, a revert can't undo it: WHAT A MISTAKE WOULD DO  <!-- the last option means the strongest critical reviewer: a revert can't undo the harm and it reaches production data, backups, secrets or credentials, money, or real people's data -->
+**Priority:** P1 | P2 | P3 | fire: THE BOARD ITEM'S PRIORITY, or fire  <!-- "fire" is only a brief value, never a board priority; it lets the work start while 3 or more items wait on the maintainer -->
 **Implementer kind:** trivial | specified | symptom-bug | native-mobile  <!-- the route's key in routing.json -->
 
 ## Goal
@@ -33,6 +34,7 @@ One or two sentences: the outcome, and how anyone can tell it's done.
 
 <!-- What must be green or shown before merge. A tester run on the real thing where the change touches something that runs. -->
 - CHECK
+- Review: the reviewer also says whether the docs are still true, and the pull request updates the docs it affects or says "No docs change:" with a reason.
 
 ## Needs the maintainer
 
