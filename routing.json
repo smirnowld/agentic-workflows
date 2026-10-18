@@ -1,0 +1,44 @@
+{
+  "_doc": "Which model and effort each role runs on. Read by the launch check; explained in docs/routing.md. Claude models are the app's aliases; Codex models are codex CLI model ids.",
+  "families": {
+    "claude": { "runner": "Agent tool" },
+    "codex": { "runner": "bin/codex-run" }
+  },
+  "roles": {
+    "lead": { "family": "claude", "model": "opus", "effort": "medium" },
+    "explorer": { "family": "claude", "model": "sonnet", "effort": "low" },
+    "tester": { "family": "claude", "model": "sonnet", "effort": "low" },
+    "reviewer": { "family": "claude", "model": "sonnet", "effort": "medium" },
+    "visual-reviewer": { "family": "claude", "model": "sonnet", "effort": "medium" },
+    "critical-reviewer": {
+      "other_family": true,
+      "claude": { "model": "opus", "effort": "high" },
+      "codex": { "model": "gpt-6.1-sol", "effort": "high" }
+    },
+    "critical-reviewer-strongest": {
+      "other_family": true,
+      "claude": { "model": "fable", "effort": "xhigh" },
+      "codex": { "model": "gpt-6-astra", "effort": "xhigh" }
+    },
+    "implementer": {
+      "kinds": {
+        "trivial": {
+          "primary": { "family": "claude", "model": "sonnet", "effort": "low" },
+          "fallback": { "family": "codex", "model": "gpt-6.1-sol", "effort": "low" }
+        },
+        "specified": {
+          "primary": { "family": "codex", "model": "gpt-6.1-sol", "effort": "medium" },
+          "fallback": { "family": "claude", "model": "sonnet", "effort": "medium" }
+        },
+        "symptom-bug": {
+          "primary": { "family": "claude", "model": "sonnet", "effort": "medium" },
+          "fallback": { "family": "claude", "model": "opus", "effort": "medium" }
+        },
+        "native-mobile": {
+          "primary": { "family": "claude", "model": "sonnet", "effort": "medium" },
+          "fallback": { "family": "claude", "model": "opus", "effort": "medium" }
+        }
+      }
+    }
+  }
+}

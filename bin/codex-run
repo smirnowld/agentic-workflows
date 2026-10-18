@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+"""Run one Codex job for a role from routing.json, non-interactively.
+
+  codex-run --role implementer --kind KIND --cwd DIR --prompt-file FILE [--fallback]
+  codex-run --role critical-reviewer[-strongest] --cwd DIR --prompt-file FILE
+
+The implementer's route is the kind's primary, or its fallback with --fallback;
+if that route is not the codex family, exit 2 (use the Agent tool instead).
+The (strongest) critical reviewer's route is its "codex" entry. The model and reasoning
+effort come from routing.json; the sandbox is workspace-write for the
+implementer and read-only for the critical reviewer. The final message goes to
+a report file whose path is printed on stdout, also after a failure if the
+file exists (codex's own output goes to stderr). The role's instructions (the
+body of agents/ROLE.md) are prepended to the prompt file's content. Launch and finish are appended to the launch log, like the hook's.
+
+Exit codes: codex's own, 2 for a usage or routing problem.
+Codex flags: `codex exec --help` (codex-cli 0.162.1): -m/--model, -C/--cd,
+-s/--sandbox, -o/--output-last-message, -c key=value (TOML), `-` reads the
+prompt from stdin. Config key model_reasoning_effort and sandbox values:
+https://learn.chatgpt.com/docs/config-file/config-reference
+"""
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+SANDBOX = {"implementer": "workspace-write", "critical-reviewer": "read-only",
+           "critical-reviewer-strongest": "read-only"}
+
+
+def die(msg):
+    print("codex-run: %s" % msg, file=sys.stderr)
+    sys.exit(2)
+
+
+def log_dir():
+    return os.environ.get("AGENTIC_LOG_DIR") or os.path.join(
+        os.path.expanduser("~"), ".claude", "agentic-workflows")
+
+
+def write_log(entry):
+    try:
+        os.makedirs(log_dir(), exist_ok=True)
+        with open(os.path.join(log_dir(), "launch-log.jsonl"), "a") as f:
+            f.write(json.dumps(entry, sort_keys=True) + "\n")
+    except Exception as e:
+        print("codex-run: cannot write the launch log: %s" % e, file=sys.stderr)
+
+
+def role_body(root, role):
+    """The role's instructions: the agent file's body after its YAML frontmatter."""
+    path = os.path.join(root, "agents", role + ".md")
+    try:
+        with open(path) as f:
+            text = f.read()
+    except Exception as e:
+        die("cannot read the role file %s: %s" % (path, e))
+    m = re.match(r"---\n.*?\n---\n", text, re.S)
+    return (text[m.end():] if m else text).strip()
+
+
+def find_route(routing, role, kind, fallback):
+    spec = routing.get("roles", {}).get(role)
+    if not isinstance(spec, dict):
+        die("routing.json has no role %r" % role)
+    if role == "implementer":
+        if not kind:
+            die("--kind is required for the implementer")
+        k = spec.get("kinds", {}).get(kind)
+        if not k:
+            die("unknown kind %r; routing.json has: %s" % (kind, ", ".join(spec.get("kinds", {}))))
+        route = k["fallback" if fallback else "primary"]
+        if route.get("family") != "codex":
+            die("the %s route for kind %s is %s %s, not codex: launch it with the Agent tool"
+                % ("fallback" if fallback else "primary", kind, route.get("family"), route.get("model")))
+        return route
+    if role in ("critical-reviewer", "critical-reviewer-strongest"):
+        if not isinstance(spec.get("codex"), dict):
+            die("%s has no codex route in routing.json" % role)
+        return spec["codex"]
+    die("role %r does not run on codex" % role)
+
+
+def main():
+    p = argparse.ArgumentParser(prog="codex-run")
+    p.add_argument("--role", required=True)
+    p.add_argument("--kind")
+    p.add_argument("--cwd", required=True)
+    p.add_argument("--prompt-file", required=True)
+    p.add_argument("--fallback", action="store_true")
+    a = p.parse_args()  # exits 2 on a usage error
+    # The plugin root is the parent of bin/, wherever the script is run from.
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        with open(os.path.join(root, "routing.json")) as f:
+            routing = json.load(f)
+    except Exception as e:
+        die("cannot read routing.json: %s" % e)
+    route = find_route(routing, a.role, a.kind, a.fallback)
+    if not os.path.isdir(a.cwd):
+        die("--cwd %s is not a directory" % a.cwd)
+    if not os.path.isfile(a.prompt_file):
+        die("--prompt-file %s is not a file" % a.prompt_file)
+
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    reports = os.path.join(log_dir(), "reports")
+    try:
+        os.makedirs(reports, exist_ok=True)
+    except Exception as e:
+        die("cannot create the reports folder %s: %s" % (reports, e))
+    report = os.path.join(reports, "%s-%s-%d.md" % (a.role, stamp, os.getpid()))
+    argv = ["codex", "exec",
+            "-C", os.path.abspath(a.cwd),
+            "-m", route["model"],
+            "-c", 'model_reasoning_effort="%s"' % route["effort"],
+            "-s", SANDBOX[a.role],
+            "-o", report,
+            "-"]
+    entry = {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+             "session": os.environ.get("CLAUDE_CODE_SESSION_ID") or os.environ.get("CLAUDE_SESSION_ID"), "cwd": os.path.abspath(a.cwd),
+             "role": a.role, "model": route["model"], "tool": "codex-run",
+             "kind": a.kind, "report": report}
+    write_log(dict(entry, decision="launch"))
+    try:
+        with open(a.prompt_file) as f:
+            brief = f.read()
+    except Exception as e:
+        die("cannot read --prompt-file %s: %s" % (a.prompt_file, e))
+    full = role_body(root, a.role) + "\n\n---\n\n" + brief
+    try:
+        rc = subprocess.run(argv, input=full.encode(), stdout=sys.stderr).returncode
+    except FileNotFoundError:
+        write_log(dict(entry, decision="error", error="codex not found on PATH"))
+        die("codex is not on PATH")
+    if rc < 0:  # killed by a signal: the shell's convention
+        rc = 128 - rc
+    write_log(dict(entry, decision="finished", exit_code=rc))
+    if rc == 0 or os.path.isfile(report):
+        print(report)
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main())

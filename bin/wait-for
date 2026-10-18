@@ -1,0 +1,222 @@
+#!/bin/sh
+# Wait on GitHub until a PR's CI, a PR's merge or a workflow run ends, and
+# always end: on success, on failure and on any state it cannot read. Run it
+# as a background task so its exit wakes the session (the coordinate skill).
+#
+#   wait-for [-R OWNER/REPO] [--deadline MINUTES] pr-ci PR
+#   wait-for [-R OWNER/REPO] [--deadline MINUTES] pr-merged PR
+#   wait-for [-R OWNER/REPO] [--deadline MINUTES] run RUN_ID
+#
+# pr-ci waits on the runs behind the base branch's required checks (the
+# ruleset's GitHub Actions checks) on the PR's current head. A check not yet
+# created is waited for while any workflow run on the head is not completed
+# (queued, waiting, in progress), since a check that needs other jobs appears
+# only after them; "CI did not start" means no workflow run at all on the
+# head after the grace period. pr-merged waits until the PR merges; run waits on one workflow run.
+# One final line on stdout, "STATE: detail", and the exit code:
+#   0 done (CI passed, or merged)   1 a check failed      2 PR closed unmerged
+#   3 head moved or auto-merge off  4 merge conflict      5 target unknown
+#   6 deadline reached
+# Exit 5 also covers workflow runs on the head that completed without the
+# required check.
+# Unknown means empty or null output, or a gh error, twice in a row; it never
+# means "keep waiting". Each poll writes one timestamped line to stderr.
+# WAIT_FOR_POLL (seconds, default 30) and WAIT_FOR_GRACE (seconds before
+# pr-ci starts asking whether any workflow run on the head exists, default
+# 600) exist for the self-test only.
+set -u
+
+usage() {
+  echo "usage: wait-for [-R OWNER/REPO] [--deadline MINUTES] pr-ci PR | pr-merged PR | run RUN_ID" >&2
+  exit 64
+}
+
+deadline=
+while [ $# -gt 0 ]; do
+  case $1 in
+    -R) [ $# -ge 2 ] || usage; GH_REPO=$2; export GH_REPO; shift ;;
+    --deadline) [ $# -ge 2 ] || usage; deadline=$2; shift ;;
+    -*) usage ;;
+    *) break ;;
+  esac
+  shift
+done
+[ $# -eq 2 ] || usage
+mode=$1 target=$2
+case $target in ''|*[!0-9]*) usage ;; esac
+case $mode in
+  pr-ci|run) : "${deadline:=45}" ;;
+  pr-merged) : "${deadline:=60}" ;;
+  *) usage ;;
+esac
+case $deadline in ''|*[!0-9]*) usage ;; esac
+poll=${WAIT_FOR_POLL:-30}
+end=$(( $(date +%s) + deadline * 60 ))
+watcher=
+trap '[ -z "$watcher" ] || kill "$watcher" 2>/dev/null' EXIT
+trap 'exit 130' INT TERM
+
+log() { echo "$(date -u +%H:%M:%SZ) wait-for $mode $target: $*" >&2; }
+finish() { echo "$2"; exit "$1"; }
+
+# read_gh VAR CMD...: run CMD, keep its output in VAR. Empty output, a null
+# field or a gh error is retried once after a poll interval; twice in a row
+# ends the wait with exit 5.
+read_gh() {
+  _var=$1; shift
+  _try=1
+  while :; do
+    if _out=$("$@" 2>/dev/null) && [ -n "$_out" ]; then
+      case " $(printf '%s' "$_out" | tr '\n\t' '  ') " in
+        *" null "*) ;;
+        *) eval "$_var=\$_out"; return 0 ;;
+      esac
+    fi
+    [ "$_try" -lt 2 ] || finish 5 "unknown: no readable answer from: $*"
+    log "unreadable answer, retrying once"
+    _try=2
+    sleep "$poll"
+  done
+}
+
+past_deadline() { [ "$(date +%s)" -ge "$end" ]; }
+
+# pr_state: state, head commit, mergeable and whether auto-merge is on.
+pr_state() {
+  read_gh pr gh pr view "$target" --json state,headRefOid,mergeable,autoMergeRequest \
+    --jq '[.state, .headRefOid, .mergeable, (.autoMergeRequest != null)] | map(tostring) | join(" ")'
+  set -- $pr
+  [ $# -eq 4 ] || finish 5 "unknown: PR $target answered '$pr'"
+  state=$1 head=$2 mergeable=$3 auto=$4
+}
+
+# check_pr: end the wait if the PR merged, closed, moved off the commit being
+# waited on, lost auto-merge it had at the start, or has a conflict.
+check_pr() {
+  pr_state
+  case $state in
+    MERGED)
+      [ "$mode" != pr-ci ] || [ "$head" = "$sha" ] \
+        || finish 3 "moved: PR $target merged at $head, not at $sha"
+      finish 0 "merged: PR $target at $head" ;;
+    CLOSED) finish 2 "closed: PR $target was closed without merging" ;;
+    OPEN) ;;
+    *) finish 5 "unknown: PR $target is in state $state" ;;
+  esac
+  [ "$head" = "$sha" ] || finish 3 "moved: PR $target head is now $head, was $sha"
+  [ "$auto0" != true ] || [ "$auto" = true ] \
+    || finish 3 "moved: auto-merge on PR $target was turned off"
+  [ "$mergeable" != CONFLICTING ] || finish 4 "conflict: PR $target has a merge conflict"
+}
+
+# run_result RUN: 0 for success, 1 for any other conclusion of a completed
+# run, 2 while it is not completed.
+run_result() {
+  read_gh res gh run view "$1" --json status,conclusion --jq '.status + " " + .conclusion'
+  set -- $res
+  [ "${1:-}" = completed ] || return 2
+  [ "${2:-}" = success ] || { conclusion=${2:-none}; return 1; }
+  return 0
+}
+
+# watch_run RUN [PR checks]: wait on one run with gh run watch, checking the
+# PR (pr-ci) and the deadline every poll. The run's own conclusion decides.
+watch_run() {
+  run=$1 restarts=0
+  while :; do
+    gh run watch "$run" --exit-status --interval "$poll" >/dev/null 2>&1 &
+    watcher=$!
+    while kill -0 "$watcher" 2>/dev/null; do
+      [ "$mode" != pr-ci ] || check_pr
+      past_deadline && finish 6 "deadline: run $run still going after $deadline min"
+      log "run $run in progress"
+      sleep "$poll"
+    done
+    wait "$watcher" 2>/dev/null
+    watcher=
+    run_result "$run"
+    case $? in
+      0) return 0 ;;
+      1) finish 1 "failed: run $run ended $conclusion" ;;
+    esac
+    # The watcher ended but the run did not: gh lost it. Once is retried.
+    restarts=$((restarts + 1))
+    [ "$restarts" -lt 2 ] || finish 5 "unknown: gh run watch $run ended twice before the run did"
+    log "watcher ended before run $run; restarting"
+    sleep "$poll"
+  done
+}
+
+case $mode in
+run)
+  watch_run "$target"
+  finish 0 "passed: run $target"
+  ;;
+pr-merged)
+  pr_state
+  sha=$head auto0=$auto
+  while :; do
+    check_pr
+    past_deadline && finish 6 "deadline: PR $target not merged after $deadline min"
+    log "open, auto-merge $auto, mergeable $mergeable"
+    sleep "$poll"
+  done
+  ;;
+pr-ci)
+  pr_state
+  sha=$head auto0=$auto
+  read_gh base gh pr view "$target" --json baseRefName --jq .baseRefName
+  # The required checks pinned to GitHub Actions (the coordinate skill).
+  read_gh checks gh api "repos/{owner}/{repo}/rules/branches/$base" --jq \
+    '[.[] | select(.type=="required_status_checks") | .parameters.required_status_checks[] | select(.integration_id==15368) | .context] | if length == 0 then "none" else join("\n") end'
+  [ "$checks" != none ] || finish 5 "unknown: $base requires no GitHub Actions check to wait on"
+  grace_s=${WAIT_FOR_GRACE:-600}
+  runs= grace=$(( $(date +%s) + grace_s ))
+  while IFS= read -r check <&3; do
+    # Find the check's run on the head; until it starts, keep checking the PR.
+    dones=0
+    while :; do
+      if url=$(gh api -X GET "repos/{owner}/{repo}/commits/$sha/check-runs" \
+          -f check_name="$check" --jq '.check_runs[0].details_url // ""' 2>/dev/null); then
+        misses=0
+      else
+        url=
+        misses=$(( ${misses:-0} + 1 ))
+        [ "$misses" -lt 2 ] || finish 5 "unknown: cannot read check runs on $sha"
+      fi
+      case $url in
+        */actions/runs/*) break ;;
+        ?*) finish 5 "unknown: check $check on $sha has no Actions run ($url)" ;;
+      esac
+      check_pr
+      past_deadline && finish 6 "deadline: no run for check $check on $sha after $deadline min"
+      note=
+      # Past the grace period, ask whether any workflow run on the head is
+      # still going: a check that needs other jobs appears only after them.
+      if [ "$(date +%s)" -ge "$grace" ]; then
+        read_gh wf gh api -X GET "repos/{owner}/{repo}/actions/runs" -f head_sha="$sha" -f per_page=100 --jq \
+          'if .total_count == 0 then "none" else ([.workflow_runs[] | select(.status != "completed")] | length | if . == 0 then "done" else "active \(.)" end) end'
+        case $wf in
+          none) finish 5 "unknown: no run for check $check on $sha after $((grace_s / 60)) min; CI did not start" ;;
+          done)
+            # Once more, for the lag before a needs-all check is created.
+            dones=$((dones + 1))
+            [ "$dones" -lt 2 ] || finish 5 "unknown: workflow runs on $sha completed without check $check"
+            note="; workflow runs completed" ;;
+          active\ *) dones=0; note="; ${wf#active } workflow run(s) still running" ;;
+          *) finish 5 "unknown: workflow runs on $sha answered '$wf'" ;;
+        esac
+      fi
+      log "no run yet for check $check on $sha$note"
+      sleep "$poll"
+    done
+    run=${url#*/actions/runs/}; run=${run%%/*}
+    case " $runs " in *" $run "*) ;; *) runs="$runs $run" ;; esac
+  done 3<<EOF
+$checks
+EOF
+  for run in $runs; do watch_run "$run"; done
+  check_pr
+  finish 0 "passed: CI on PR $target at $sha (runs$runs)"
+  ;;
+esac

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "deny": ["Edit", "Write", "NotebookEdit"],
+    "additionalDirectories": ["PATH_TO_READ_ONLY_CHECKOUT_1", "PATH_TO_READ_ONLY_CHECKOUT_2"]
+  },
+  "enabledPlugins": {
+    "agentic-workflows@agentic-workflows": true
+  }
+}

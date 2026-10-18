@@ -1,0 +1,13 @@
+{
+  "name": "agentic-workflows",
+  "description": "Rules, role routing, launch checks and helpers for a lead-and-sessions agent setup",
+  "agents": [
+    "./agents/implementer.md",
+    "./agents/tester.md",
+    "./agents/explorer.md",
+    "./agents/reviewer.md",
+    "./agents/critical-reviewer.md",
+    "./agents/critical-reviewer-strongest.md",
+    "./agents/visual-reviewer.md"
+  ]
+}

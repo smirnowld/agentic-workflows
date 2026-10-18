@@ -1,0 +1,13 @@
+/.github/ @smirnowld
+/CODEOWNERS @smirnowld
+/.claude-plugin/ @smirnowld
+/hooks/ @smirnowld
+/bin/ @smirnowld
+/Makefile @smirnowld
+/routing.json @smirnowld
+/RULES.md @smirnowld
+/agents/ @smirnowld
+/skills/ @smirnowld
+/AGENTS.md @smirnowld
+/CLAUDE.md @smirnowld
+/tests/ @smirnowld
