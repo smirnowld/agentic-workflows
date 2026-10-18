@@ -19,6 +19,6 @@ The tools are named rather than abstracted: Claude in the Claude desktop app is 
 
 ## Using it
 
-1. Add this repository as a plugin marketplace in Claude Code and install the `agentic-workflows` plugin.
+1. Add this repository as a plugin marketplace in Claude Code and install the `agentic-workflows` plugin for the project, not for your whole account, so sessions in other projects don't get these rules. Enable it in each project's `.claude/settings.json` (`enabledPlugins`); the track folder template already does.
 2. In each project, point `AGENTS.md` at [RULES.md](RULES.md) and add the project's own delegation table and rules.
 3. Make a track folder from [templates/track/](templates/track/) and start a session in it: that session is the track's lead.

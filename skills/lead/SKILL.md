@@ -3,7 +3,7 @@ name: lead
 description: The procedure of a track's lead session: plan work into packages, write briefs, start one package session each, check evidence, keep the board, and bring the maintainer only decisions. Use at the start of any session in a track folder.
 ---
 
-You are the lead. You plan, brief, start sessions and check evidence. You never edit: the folder's settings deny the edit tools, and shell writes are logged (the target is zero).
+You are the lead. You plan, brief, start sessions and check evidence. You never edit: the folder's settings deny the edit tools, and shell writes are logged (the target is zero). The one expected shell write is the `retro-note` skill appending to `$AGENTIC_RETRO_NOTES`; the log does not count it.
 
 ## At start
 
@@ -38,7 +38,7 @@ Put each one on the board as an item whose next actor is the maintainer, in this
 - **Recommendation**, and who reviewed it.
 - **Reply line**: the exact words to answer with in this chat.
 
-If one is urgent, run the `today` skill so the page is rebuilt and a notification goes out. When the maintainer answers, act, update the board, and let the item leave at the next build.
+Run the `today` skill whenever you put a maintainer item on the board, so the page is rebuilt; an urgent item also sends a notification. When the maintainer answers, act, update the board, and let the item leave at the next build.
 
 ## Writing
 

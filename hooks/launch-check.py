@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """PreToolUse hook for the Agent and Bash tools.
 
-Agent: maps subagent_type (with or without the "agentic-workflows:" prefix) to
-a role in routing.json and allows the launch only when tool_input.model is one
-routing.json allows for that role. A launch of a routed role without a model,
-or with another one, is denied with a message naming the expected model.
-Unrouted subagent types pass.
+Agent: maps an "agentic-workflows:ROLE" subagent_type to a role in routing.json
+and allows the launch only when the model is one routing.json allows for that
+role. A launch without a model uses the one in the role's agent file, so it is
+checked the same way; it is denied when that cannot be read or is not allowed.
+The deny message names the primary route's model first. Other subagent types,
+bare names included, are the user's or the project's own agents and pass.
 
 Bash: in a lead's track folder (cwd holds both track.md and CLAUDE.md), a
 command that writes is logged, never blocked.
@@ -30,15 +31,15 @@ START = r"(^|[\s;&|(])"
 
 # Command shapes that write, for the lead's folder.
 WRITE_PATTERNS = [
-    ("redirect", re.compile(r"(^|[^<>&0-9])>>?(?!&)")),
+    ("redirect", re.compile(r"(^|[^<>&0-9])>>?(?!&)(?!\s*/dev/null(\s|$|[;&|)]))")),
     ("tee", re.compile(START + r"tee(\s|$)")),
-    ("sed -i", re.compile(START + r"sed\s+(-\S+\s+)*-[a-zA-Z]*i")),
+    ("sed -i", re.compile(START + r"sed\s+(\S+\s+)*?(-[a-zA-Z]*i|--in-place)")),
     ("mv", re.compile(START + r"mv(\s|$)")),
     ("cp", re.compile(START + r"cp(\s|$)")),
     ("rm", re.compile(START + r"rm(\s|$)")),
     ("mkdir", re.compile(START + r"mkdir(\s|$)")),
     ("touch", re.compile(START + r"touch(\s|$)")),
-    ("git write", re.compile(START + r"git\s+(-\S+\s+)*(commit|push|apply)(\s|$)")),
+    ("git write", re.compile(START + r"git\s+(-\S+\s+|-[Cc]\s+\S+\s+)*(commit|push|apply|add|rm|mv|reset|checkout|switch|merge|rebase|cherry-pick|revert|tag|stash|restore|clean|pull|am)(\s|$)")),
 ]
 
 
@@ -66,8 +67,9 @@ def plugin_root():
 def claude_models(spec):
     """Models the Agent tool may run this role on, from routing.json."""
     if "kinds" in spec:  # implementer: any kind's primary or fallback
-        routes = [r for k in spec["kinds"].values() for r in (k.get("primary"), k.get("fallback"))]
-        return sorted({r["model"] for r in routes if r and r.get("family") == "claude"})
+        # primaries first, then fallbacks, each in routing.json order
+        routes = [k.get("primary") for k in spec["kinds"].values()] + [k.get("fallback") for k in spec["kinds"].values()]
+        return list(dict.fromkeys(r["model"] for r in routes if r and r.get("family") == "claude"))
     if spec.get("family") == "claude":
         return [spec["model"]]
     if isinstance(spec.get("claude"), dict):  # critical-reviewer
@@ -81,10 +83,24 @@ def model_ok(given, allowed):
     return any(g == a.lower() or a.lower() in re.split(r"[^a-z0-9.]+", g) for a in allowed)
 
 
+def agent_file_model(role):
+    """The model: line of the plugin's agents/ROLE.md frontmatter, or None."""
+    if not re.fullmatch(r"[a-z0-9-]+", role):
+        return None
+    try:
+        with open(os.path.join(plugin_root(), "agents", role + ".md")) as f:
+            text = f.read()
+    except OSError:
+        return None
+    m = re.match(r"---\n(.*?)\n---\n", text, re.S)
+    mm = re.search(r"^model:\s*(\S+)\s*$", m.group(1), re.M) if m else None
+    return mm.group(1) if mm else None
+
+
 def check_agent(data, entry):
     ti = data.get("tool_input") or {}
     st = str(ti.get("subagent_type") or "")
-    role = st[len(PREFIX):] if st.startswith(PREFIX) else st
+    role = st[len(PREFIX):] if st.startswith(PREFIX) else ""
     model = ti.get("model")
     entry.update(role=role or None, model=model)
     with open(os.path.join(plugin_root(), "routing.json")) as f:
@@ -94,8 +110,12 @@ def check_agent(data, entry):
     if not allowed:
         entry["decision"] = "pass"
         return None
-    if model and model_ok(model, allowed):
+    effective = model or agent_file_model(role)
+    if effective and model_ok(effective, allowed):
         entry["decision"] = "allow"
+        if not model:
+            entry["model"] = effective
+            entry["model_from"] = "agent file"
         return None
     entry["decision"] = "deny"
     reason = ("routing.json runs the %s role on %s (docs/routing.md); this launch %s. "
@@ -107,12 +127,23 @@ def check_agent(data, entry):
                                    "permissionDecisionReason": reason}}
 
 
+RETRO = re.compile(r"(>>?|mkdir\s+(-\S+\s+)*)\s*[\"']?\$\{?AGENTIC_RETRO_NOTES\}?[^\s;&|]*[\"']?")
+QUOTED = re.compile(r"\"(?:\\.|[^\"\\])*\"|'[^']*'", re.S)
+
+
+def code_of(cmd):
+    """The command without the retro-note skill's own writes (into
+    $AGENTIC_RETRO_NOTES) and without quoted text, which is not a command."""
+    return QUOTED.sub('""', RETRO.sub(" ", cmd))
+
+
 def check_bash(data, entry):
     cwd = data.get("cwd") or ""
     if not (os.path.isfile(os.path.join(cwd, "track.md")) and os.path.isfile(os.path.join(cwd, "CLAUDE.md"))):
         return False
     cmd = str((data.get("tool_input") or {}).get("command") or "")
-    kinds = [name for name, rx in WRITE_PATTERNS if rx.search(cmd)]
+    code = code_of(cmd)
+    kinds = [name for name, rx in WRITE_PATTERNS if rx.search(code)]
     if not kinds:
         return False
     entry.update(role="lead", decision="lead-write", detail=kinds)

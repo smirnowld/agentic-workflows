@@ -1,6 +1,6 @@
 # Roles and routing
 
-Each role runs on the model that measured best for its job. [routing.json](../routing.json) is the one place that says which; a launch check compares every launch with it and logs any difference.
+Each role runs on the model that measured best for its job. [routing.json](../routing.json) is the one place that says which; a launch check refuses a Claude launch whose model the role's route doesn't allow, and logs every launch. Effort comes from the role's agent file; only the Codex routes set it per kind.
 
 ## Implementers
 

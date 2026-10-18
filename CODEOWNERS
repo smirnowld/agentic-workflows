@@ -4,3 +4,7 @@
 /hooks/ @smirnowld
 /bin/ @smirnowld
 /Makefile @smirnowld
+/routing.json @smirnowld
+/RULES.md @smirnowld
+/agents/ @smirnowld
+/skills/ @smirnowld

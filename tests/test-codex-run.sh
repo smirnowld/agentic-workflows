@@ -25,7 +25,13 @@ report=$("$tool" --role implementer --kind specified --cwd "$tmp/work" --prompt-
 echo "specified primary: $(argv)"
 [ "$(argv)" = "exec -C $tmp/work -m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -s workspace-write -o $report - " ] || bad "unexpected argv for specified primary"
 [ "$(cat "$report")" = "final message" ] || bad "report file lacks the final message"
-[ "$(cat "$tmp/stdin")" = "do the thing" ] || bad "prompt not passed on stdin"
+# The prompt codex receives starts with the role body and ends with the brief.
+body=$(awk 'f>=2{print} /^---$/{f++}' "$root/agents/implementer.md" | sed '1{/^$/d;}')
+first=$(printf '%s\n' "$body" | head -n 1)
+[ "$(head -n 1 "$tmp/stdin")" = "$first" ] && [ -n "$first" ] || bad "stdin does not start with the implementer body"
+case $(head -n 1 "$tmp/stdin") in ---*) bad "frontmatter leaked into the prompt" ;; esac
+[ "$(tail -n 1 "$tmp/stdin")" = "do the thing" ] || bad "brief not at the end of stdin"
+grep -q 'commit, push' "$tmp/stdin" || bad "implementer rules missing from stdin"
 
 "$tool" --role implementer --kind trivial --fallback --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1 || bad "trivial fallback failed"
 echo "trivial fallback: $(argv)"
@@ -34,6 +40,7 @@ case $(argv) in *"-m gpt-6.1-sol -c model_reasoning_effort=\"low\" -s workspace-
 "$tool" --role critical-reviewer --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1 || bad "critical-reviewer failed"
 echo "critical-reviewer: $(argv)"
 case $(argv) in *"-m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -s read-only"*) ;; *) bad "critical-reviewer argv" ;; esac
+grep -q 'RULES.md critical criteria' "$tmp/stdin" || bad "critical-reviewer body not prepended"
 
 # A route that is not codex: exit 2 and codex is not run.
 rm -f "$tmp/argv"
@@ -43,9 +50,9 @@ rm -f "$tmp/argv"
 "$tool" --role reviewer --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1; [ $? = 2 ] || bad "claude-only role should exit 2"
 "$tool" --role implementer --kind specified --cwd "$tmp/nope" --prompt-file "$tmp/prompt" >/dev/null 2>&1; [ $? = 2 ] || bad "missing cwd should exit 2"
 
-# Codex failing passes its exit code through and prints no report path.
+# Codex failing passes its exit code through and still prints the report path.
 out=$(FAKE_CODEX_EXIT=3 "$tool" --role implementer --kind specified --cwd "$tmp/work" --prompt-file "$tmp/prompt" 2>/dev/null); rc=$?
-[ "$rc" = 3 ] && [ -z "$out" ] || bad "exit passthrough: rc=$rc out=$out"
+[ "$rc" = 3 ] && [ -f "$out" ] || bad "exit passthrough: rc=$rc out=$out"
 
 # The launch log has launch and finished lines.
 grep -q '"decision": "launch"' "$tmp/log/launch-log.jsonl" && grep -q '"decision": "finished"' "$tmp/log/launch-log.jsonl" || bad "launch log lacks launch/finished"

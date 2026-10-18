@@ -4,10 +4,12 @@ Every session in a project on this setup starts with these rules. The project's 
 
 Where a mechanism enforces a rule, the rule names it. The mechanism is what counts; the rule explains it.
 
+Three words recur. A **track** is one area of work (CI, say) with its own lead and board. The **fence** is what agents may do on their own, set by the delegation table and enforced by CODEOWNERS, rulesets and permissions. The **Today page** ([docs/today.md](docs/today.md)) is where the maintainer sees what needs them.
+
 ## Who decides
 
 - The project's delegation table ([docs/delegation.md](docs/delegation.md)) says what agents do on their own and what goes to the maintainer. Inside the fence, decide, act and merge without asking. Outside it, prepare the change and put the decision on the Today page, with its effect and a recommendation.
-- Never approve a pull request, never use a bypass, and never change your own fence: CODEOWNERS, rulesets, permissions, admission policies, identities, the delegation table. CODEOWNERS and rulesets enforce this.
+- Never approve a pull request, never use a bypass, and never loosen your own fence (the set of things agents may do: CODEOWNERS, rulesets, permissions, admission policies, identities, the delegation table). A change that only tightens it merges after a critical review; one that loosens it goes to the maintainer. CODEOWNERS and rulesets enforce this.
 - A decision record (ADR) changes only when the maintainer decides it. Disagree with reasons; never work around one.
 - Don't invent requirements. If a brief or a decision looks wrong, stop and say why.
 
@@ -15,7 +17,7 @@ Where a mechanism enforces a rule, the rule names it. The mechanism is what coun
 
 - A track has one lead ([docs/lead.md](docs/lead.md)). It plans, writes briefs, starts one session per work package and checks their evidence. It never edits; its folder's settings deny the edit tools.
 - A package session takes one work package from one brief, in its own worktree. It coordinates subagents, checks their evidence, merges inside the fence and reports back in a few lines.
-- Each role's model and effort come from [routing.json](routing.json) ([docs/routing.md](docs/routing.md)). A launch check compares every launch with it.
+- Each role's model comes from [routing.json](routing.json) ([docs/routing.md](docs/routing.md)). A launch check refuses a Claude launch whose model the role's route doesn't allow; effort comes from the role's agent file, and for Codex from the route.
 - Use the shipped helpers (waiting, launching Codex) rather than hand-written loops.
 - Never touch work you didn't start: other sessions' worktrees, branches, uncommitted changes or processes.
 

@@ -9,8 +9,9 @@ if that route is not the codex family, exit 2 (use the Agent tool instead).
 The critical reviewer's route is its "codex" entry. The model and reasoning
 effort come from routing.json; the sandbox is workspace-write for the
 implementer and read-only for the critical reviewer. The final message goes to
-a report file whose path is printed on stdout (codex's own output goes to
-stderr). Launch and finish are appended to the launch log, like the hook's.
+a report file whose path is printed on stdout, also after a failure if the
+file exists (codex's own output goes to stderr). The role's instructions (the
+body of agents/ROLE.md) are prepended to the prompt file's content. Launch and finish are appended to the launch log, like the hook's.
 
 Exit codes: codex's own, 2 for a usage or routing problem.
 Codex flags: `codex exec --help` (codex-cli 0.162.1): -m/--model, -C/--cd,
@@ -21,6 +22,7 @@ https://learn.chatgpt.com/docs/config-file/config-reference
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -45,6 +47,18 @@ def write_log(entry):
             f.write(json.dumps(entry, sort_keys=True) + "\n")
     except Exception as e:
         print("codex-run: cannot write the launch log: %s" % e, file=sys.stderr)
+
+
+def role_body(root, role):
+    """The role's instructions: the agent file's body after its YAML frontmatter."""
+    path = os.path.join(root, "agents", role + ".md")
+    try:
+        with open(path) as f:
+            text = f.read()
+    except Exception as e:
+        die("cannot read the role file %s: %s" % (path, e))
+    m = re.match(r"---\n.*?\n---\n", text, re.S)
+    return (text[m.end():] if m else text).strip()
 
 
 def find_route(routing, role, kind, fallback):
@@ -77,8 +91,8 @@ def main():
     p.add_argument("--prompt-file", required=True)
     p.add_argument("--fallback", action="store_true")
     a = p.parse_args()  # exits 2 on a usage error
-    root = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.path.dirname(
-        os.path.dirname(os.path.abspath(__file__)))
+    # The plugin root is the parent of bin/, wherever the script is run from.
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     try:
         with open(os.path.join(root, "routing.json")) as f:
             routing = json.load(f)
@@ -92,7 +106,10 @@ def main():
 
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     reports = os.path.join(log_dir(), "reports")
-    os.makedirs(reports, exist_ok=True)
+    try:
+        os.makedirs(reports, exist_ok=True)
+    except Exception as e:
+        die("cannot create the reports folder %s: %s" % (reports, e))
     report = os.path.join(reports, "%s-%s-%d.md" % (a.role, stamp, os.getpid()))
     argv = ["codex", "exec",
             "-C", os.path.abspath(a.cwd),
@@ -102,18 +119,25 @@ def main():
             "-o", report,
             "-"]
     entry = {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-             "session": os.environ.get("CLAUDE_SESSION_ID"), "cwd": os.path.abspath(a.cwd),
+             "session": os.environ.get("CLAUDE_CODE_SESSION_ID") or os.environ.get("CLAUDE_SESSION_ID"), "cwd": os.path.abspath(a.cwd),
              "role": a.role, "model": route["model"], "tool": "codex-run",
              "kind": a.kind, "report": report}
     write_log(dict(entry, decision="launch"))
     try:
-        with open(a.prompt_file) as prompt:
-            rc = subprocess.call(argv, stdin=prompt, stdout=sys.stderr)
+        with open(a.prompt_file) as f:
+            brief = f.read()
+    except Exception as e:
+        die("cannot read --prompt-file %s: %s" % (a.prompt_file, e))
+    full = role_body(root, a.role) + "\n\n---\n\n" + brief
+    try:
+        rc = subprocess.run(argv, input=full.encode(), stdout=sys.stderr).returncode
     except FileNotFoundError:
         write_log(dict(entry, decision="error", error="codex not found on PATH"))
         die("codex is not on PATH")
     write_log(dict(entry, decision="finished", exit_code=rc))
-    if rc == 0:
+    if rc < 0:  # killed by a signal: the shell's convention
+        rc = 128 - rc
+    if rc == 0 or os.path.isfile(report):
         print(report)
     return rc
 
