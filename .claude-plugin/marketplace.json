@@ -1,0 +1,14 @@
+{
+  "name": "agentic-workflows",
+  "description": "Rules, role routing, launch checks and helpers for a lead-and-sessions agent setup",
+  "owner": {
+    "name": "agentic-workflows"
+  },
+  "plugins": [
+    {
+      "name": "agentic-workflows",
+      "source": ".",
+      "description": "Rules, role routing, launch checks and helpers for a lead-and-sessions agent setup"
+    }
+  ]
+}

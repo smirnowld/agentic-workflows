@@ -38,18 +38,15 @@ The number of sessions or streams the maintainer touches is **not** a measure. M
 ## Layers
 
 1. **Intent.** Vision, users, roadmap, quality and design bar, the delegation table. Shaped in conversation with AI, which writes it down and keeps it consistent. The maintainer decides.
-2. **Management.** One lead per track. It turns intent into work, owns tactical decisions within delegated authority, and escalates only what the table says to.
-
-   *Open:* 1.0 coordinators implemented work themselves, carried too much context and seemed expensive. Design against that: a lead with no checkout to edit, its state kept in issues rather than chat, wake-ups only when work finishes. Measure the lead's tokens per outcome.
-3. **Execution.** Workflows made of roles: implementers, testers (who use the product), and reviewers for code, UI, UX, visual design, docs and security. Each role is routed to the model that suits it and given only its own context.
+2. **Management.** One lead per track. It turns intent into work, owns tactical decisions within delegated authority, and escalates only what the table says to. 1.0 coordinators implemented work themselves and carried too much context, so the lead has no checkout to edit, starts one session per work package rather than its own implementers, and keeps its state in issues rather than chat ([docs/lead.md](docs/lead.md)). Its tokens per outcome are measured.
+3. **Execution.** Workflows made of roles: implementers, testers (who use the product), and reviewers for code, UI, UX, visual design, docs and security. Each role is routed to the model that suits it ([docs/routing.md](docs/routing.md)) and given only its own context.
 4. **Controls.**
    - GitOps: a merge is the deploy.
    - Rulesets, admission policies, RBAC.
    - Scoped identities per track, including secrets that agents use but never see.
    - Budgets, an audit log, rollback.
 5. **Visibility.**
-   - A feed of finished work: one line each, details a click away.
-   - An inbox holding only the maintainer's decisions.
+   - The Today page, feed and inbox in one: the maintainer's decisions, finished work one line each with details a click away, and what is stuck ([docs/today.md](docs/today.md)).
    - Portfolio and thread views: phases, deliverables, outcomes, KPIs.
    - A visual plan for each initiative, and an org-structure view of who does what.
    - Likely built into the maintainer's existing dashboard.
@@ -70,7 +67,7 @@ A mechanism checks this, a review step on generated reports, and the maintainer'
 
 ## Authority, in principle
 
-The full delegation table is a later document. Its principles:
+Each track writes its own delegation table, from the patterns in [docs/delegation.md](docs/delegation.md). The principles:
 
 - **Agents decide, act and merge:** work inside the fence (the limits that mechanisms enforce: access rights, admission policies, rulesets, scoped identities), including running commands and using the secrets their identity holds, with checks green and independent review passed. It appears in the feed.
 - **The maintainer decides:**
@@ -79,7 +76,7 @@ The full delegation table is a later document. Its principles:
   - budget and provider split;
   - changes to the fence: RBAC, admission policies, rulesets, identities, which secrets an identity holds, the delegation table;
   - irreversible or outward-facing actions: publishing, money, accounts, real people's data.
-- **Open:** how a fence change is shown so the maintainer actually judges it. The proposal is effects, not code: who gains or loses which right, proven before and after, checked by a reviewer from another model family. If even that gets rubber-stamped, replace the gate with audit plus revert.
+- **Fence changes split by direction.** A change that only tightens the fence is proven before and after, reviewed by a reviewer from the other model family, and merged by agents; a revert undoes it. A change that loosens it goes to the maintainer, shown as its effect: who gains or loses which right, never code. Whether the maintainer's review changes those outcomes is measured; if it never does, the gate gives way to audit plus revert.
 
 ## Lessons carried from 1.0
 
@@ -109,8 +106,7 @@ Work is split into tracks by purpose, not by host: a track's context is what its
 
 ## Open questions
 
-1. Does a lead per track cost less than 1.0's coordination?
-2. Which jobs go to Codex? To be settled by side-by-side runs and the 1.0 trials' results.
+1. Does a lead per track cost less than 1.0's coordination? Measured from the first track's Day 0 ([docs/lead.md](docs/lead.md#measures)).
+2. Is Codex as good a critical reviewer as Claude? A blind replay of past pull requests decides ([docs/routing.md](docs/routing.md#the-other-family)).
 3. Where do docs and context live, and how does each role get its share?
-4. What does the fence gate look like, if the maintainer is to actually use it?
-5. How do agents hold secrets without the maintainer watching: one identity per track, vault scopes, rotation?
+4. How do agents hold secrets without the maintainer watching: one identity per track, vault scopes, rotation? Placing and rotating secrets stays the maintainer's until this is settled.

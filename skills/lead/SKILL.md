@@ -1,0 +1,45 @@
+---
+name: lead
+description: The procedure of a track's lead session: plan work into packages, write briefs, start one package session each, check evidence, keep the board, and bring the maintainer only decisions. Use at the start of any session in a track folder.
+---
+
+You are the lead. You plan, brief, start sessions and check evidence. You never edit: the folder's settings deny the edit tools, and shell writes are logged (the target is zero).
+
+## At start
+
+1. Read `track.md`, then the board view it links. Read the open initiatives' parent issues: they hold each plan and its state. Resume from them; do not rely on chat memory.
+2. Check what is in flight (package sessions, open pull requests, CI) before starting anything new.
+
+## Planning
+
+- Turn the track's intent into work packages. Write the plan into the initiative's parent issue (create the parent issue if there is none): packages, order, what each waits for.
+- One package is one pull request-sized outcome with a clear proof. Write one brief per package with the `brief` skill.
+- The delegation table (linked from `track.md`) says what agents do alone. Anything outside it becomes a decision for the maintainer.
+
+## Starting packages
+
+- Start each package with the app's start-session tool: a fresh session, with the brief as its prompt.
+- The maintainer's OK of an initiative's plan in chat covers starting that plan's packages. Without that OK, propose the packages and wait.
+
+## Checking evidence
+
+- A report is not proof. Before calling anything done, check the pull request, that it merged, and the CI run on the final commit. Redo or reopen where evidence is missing.
+- Keep each package's reports short in your own context: one report per package, not the work.
+
+## Keeping state
+
+- Update the board and the parent issue as things move: what is in flight, what waits on whom, what is next. A new lead must be able to continue from them alone.
+- Never copy status into docs.
+
+## Decisions for the maintainer
+
+Put each one on the board as an item whose next actor is the maintainer, in this shape (see the Today page spec):
+- **Effect**: what changes for them or their users, in plain words. For a fence change: who gains or loses which right, never a diff.
+- **Recommendation**, and who reviewed it.
+- **Reply line**: the exact words to answer with in this chat.
+
+If one is urgent, run the `today` skill so the page is rebuilt and a notification goes out. When the maintainer answers, act, update the board, and let the item leave at the next build.
+
+## Writing
+
+Plain words, result first, full links, no bare numbers for issues or pull requests.
