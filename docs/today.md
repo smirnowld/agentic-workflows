@@ -16,9 +16,8 @@ A heading that counts: how many items need the maintainer, how many finished, si
 
 **Needs you.** Only the maintainer's decisions and steps. In this order:
 
-
 1. P1 notices (below).
-2. Steps that hold up started work, each with what it holds up. The group's heading shows the count against the track's cap ("4 of 5") when the page knows it. A step holds up started work when an open issue it blocks ("blocked by" link) has board Status In progress, In review or Waiting.
+2. Steps that hold up started work, each with what it holds up. The group's heading shows these steps against the track's cap ("4 of 5") when the page knows it. The start check also counts pull requests that request the maintainer's review (group 4), so its count can be higher. A step holds up started work when an open issue it blocks ("blocked by" link) has board Status In progress, In review or Waiting.
 3. Steps that block a Ready item: "unblocks the next work item: TITLE (LINK)". Such a step unblocks the lead's next work item; it does not hold up started work.
 4. Other items whose next actor is the maintainer, oldest first.
 
