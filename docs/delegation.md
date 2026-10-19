@@ -6,9 +6,10 @@ A row with no mechanism is a wish. Building the mechanism is fence work and come
 
 ## Who decides
 
-- **Agents decide, act and merge** inside the fence: the limits that mechanisms enforce (access rights, admission policies, rulesets, scoped identities). That includes running commands and using the secrets their identity holds, with checks green and an independent review passed.
+- **Agents decide, act and merge** inside the fence: the limits that mechanisms enforce (access rights, admission policies, rulesets, scoped identities). That includes running commands and using the secrets their identity holds, with checks green and an independent review passed. Recording a decision made in the session as a new decision record (ADR), marked accepted, is theirs too.
 - **The maintainer decides**:
   - direction: vision, roadmap, users, design taste, high-impact standards;
+  - reversing, superseding or amending an accepted ADR;
   - starting and stopping tracks;
   - budget and the split between providers;
   - anything that loosens the fence (see the pattern below);
