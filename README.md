@@ -20,8 +20,8 @@ Not goals: provider neutrality, cloud sessions (every token must be visible), mo
 1. **Intent.** Vision, users, roadmap, the quality and design bar, and each track's delegation table ([docs/delegation.md](docs/delegation.md)). I decide; AI writes it down and keeps it consistent.
 2. **Management.** One lead per track ([docs/lead.md](docs/lead.md)). It turns intent into work, decides tactics within its delegated authority and brings me only what the table says to. It has no checkout to edit and keeps its state on the board.
 3. **Execution.** Roles: implementers, testers who use the product, and reviewers. Each runs on the model that measured best for it ([docs/routing.md](docs/routing.md)) and gets only its own context.
-4. **Controls.** A merge is the deploy. Rulesets, admission policies and RBAC; scoped identities, with secrets agents use but never see; budgets, an audit log, rollback.
-5. **Visibility.** The Today page ([docs/today.md](docs/today.md)): what needs me, what finished, what is stuck.
+4. **Controls.** A merge is the deploy. Rulesets, admission policies and RBAC; scoped identities, with secrets agents use but never see; budgets, an audit log, rollback. A lead starts no new work while too many of my steps hold up work already started ([docs/start-check.md](docs/start-check.md)).
+5. **Visibility.** The Today page ([docs/today.md](docs/today.md)): what needs me, what finished, what is stuck, with the board's drift (`bin/board-drift`).
 6. **Learning.** Notes captured mid-session with the `retro-note` skill, and a scheduled retro that reads them with the sessions and measures and proposes concrete changes. The retro is the one place the process changes.
 
 ## Measures
@@ -47,6 +47,7 @@ How many sessions I touch is not a measure.
 - [docs/routing.md](docs/routing.md) and [routing.json](routing.json): which model each role runs on, and why.
 - [docs/today.md](docs/today.md): the Today page.
 - [templates/](templates/): the brief and the track folder.
+- [bin/](bin/): helpers, among them `board-drift`, a read-only report of what on a board has drifted, and `docs-check`, a CI check that a pull request changes docs or says why not and that docs stay within a line budget.
 - The Claude Code plugin ([.claude-plugin/](.claude-plugin/)): the roles, skills, hooks and helpers that bring all of this into a session.
 
 ## Using it
@@ -59,4 +60,4 @@ How many sessions I touch is not a measure.
    ```
 
 3. **Codex.** It reads the project's `AGENTS.md` and a global `~/.codex/AGENTS.md`. If the global file carries another setup's rules, I put an exception at its top for projects whose `AGENTS.md` says they run on agentic-workflows. Codex gets RULES.md and its role's text from `bin/codex-run`, which puts them at the start of every prompt.
-4. **Track folder.** I make it outside any repository, so the lead has no checkout to edit, from [templates/track/](templates/track/), and list in it the main checkouts the lead reads. A session started there is the track's lead.
+4. **Track folder.** I make it outside any repository, so the lead has no checkout to edit, from [templates/track/](templates/track/), and list in it the main checkouts the lead reads. Its `.claude/agentic-workflows.json` names the same repositories, my login and the cap for the start check. A session started there is the track's lead.
