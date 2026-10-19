@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+"""Report forgotten upkeep on a GitHub project board. Read-only.
+
+  board-drift OWNER NUMBER [--repo OWNER/REPO ...] [--stale-days 7]
+              [--status-field Status] [--done Done] [--in-progress "In progress"]
+              [--waiting Waiting]
+              [--json]
+
+Findings:
+  closed-not-done  the issue or pull request is closed but its status is not done
+  not-on-board     an open pull request in a given repository is not on the board
+  stale            an in-progress item has had no update for more than stale-days
+  upkeep-due       an open issue on the board whose sub-issues are all closed
+  waiting-unlinked an open issue in the waiting status with no open "blocked by"
+                   issue, whose "Waiting for" field is empty or names an issue
+                   (#123 or a github.com issue or pull request URL): link the
+                   blocking issue as blocked by, or write the outside wait in
+                   Waiting for. A wait in words is not flagged; drafts and
+                   pull requests are not checked.
+
+Prints one line per finding, or one JSON object per finding (kind, url, title,
+detail) with --json. Exits 0 with findings; non-zero only on errors.
+"""
+import json
+import re
+import subprocess
+import sys
+from datetime import datetime, timezone
+
+ITEMS = """
+query($owner: String!, $number: Int!, $field: String!, $after: String) {
+  %s(login: $owner) {
+    projectV2(number: $number) {
+      items(first: 100, after: $after) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          updatedAt
+          status: fieldValueByName(name: $field) {
+            ... on ProjectV2ItemFieldSingleSelectValue { name }
+          }
+          fieldValues(first: 30) {
+            nodes {
+              ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2FieldCommon { name } } }
+            }
+          }
+          content {
+            __typename
+            ... on Issue {
+              url title state updatedAt subIssuesSummary { total completed }
+              blockedBy(first: 50) { nodes { state } }
+            }
+            ... on PullRequest { url title state updatedAt }
+          }
+        }
+      }
+    }
+  }
+}"""
+
+PRS = """
+query($owner: String!, $name: String!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(states: OPEN, first: 100, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      nodes { url title }
+    }
+  }
+}"""
+
+
+def die(msg):
+    sys.stderr.write("board-drift: %s\n" % msg)
+    sys.exit(2)
+
+
+def gql(query, **vars):
+    cmd = ["gh", "api", "graphql", "-f", "query=" + query]
+    for k, v in vars.items():
+        if v is None:
+            continue
+        cmd += ["-F" if isinstance(v, int) else "-f", "%s=%s" % (k, v)]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.strip() or "gh failed")
+    try:
+        return json.loads(r.stdout)["data"]
+    except (ValueError, KeyError):
+        raise RuntimeError("unreadable answer from gh")
+
+
+def board_items(owner, number, field):
+    first_err = None
+    for kind in ("organization", "user"):
+        items, after = [], None
+        try:
+            while True:
+                d = gql(ITEMS % kind, owner=owner, number=number, field=field, after=after)
+                proj = (d.get(kind) or {}).get("projectV2")
+                if not proj:
+                    raise RuntimeError("no such project")
+                page = proj["items"]
+                items += page["nodes"]
+                if not page["pageInfo"]["hasNextPage"]:
+                    return items
+                after = page["pageInfo"]["endCursor"]
+        except RuntimeError as e:
+            if kind == "organization":
+                first_err = e
+                if "could not resolve" not in str(e).lower():
+                    break
+    die("cannot read project %s/%s: %s" % (owner, number, first_err))
+
+
+def open_prs(repo):
+    owner, _, name = repo.partition("/")
+    out, after = [], None
+    while True:
+        try:
+            d = gql(PRS, owner=owner, name=name, after=after)
+        except RuntimeError as e:
+            die("cannot read pull requests of %s: %s" % (repo, e))
+        page = d["repository"]["pullRequests"]
+        out += page["nodes"]
+        if not page["pageInfo"]["hasNextPage"]:
+            return out
+        after = page["pageInfo"]["endCursor"]
+
+
+ISSUE_REF = re.compile(r"#\d+|github\.com/[^\s/]+/[^\s/]+/(?:issues|pull)/\d+", re.I)
+
+
+def waiting_for(item):
+    """The text of the "Waiting for" field (name matched ignoring case), or ""."""
+    for v in (item.get("fieldValues") or {}).get("nodes") or []:
+        name = ((v or {}).get("field") or {}).get("name") or ""
+        if name.strip().lower() == "waiting for":
+            return (v.get("text") or "").strip()
+    return ""
+
+
+def parse_time(s):
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def main(argv):
+    pos, repos, flags = [], [], {"--stale-days": "7", "--status-field": "Status",
+                                 "--done": "Done", "--in-progress": "In progress",
+                                 "--waiting": "Waiting"}
+    as_json = False
+    while argv:
+        a = argv.pop(0)
+        if a == "--json":
+            as_json = True
+        elif a == "--repo" and argv:
+            repos.append(argv.pop(0))
+        elif a in flags and argv:
+            flags[a] = argv.pop(0)
+        elif a.startswith("-"):
+            die("unknown option %s" % a)
+        else:
+            pos.append(a)
+    if len(pos) != 2 or not pos[1].isdigit():
+        die("usage: board-drift OWNER NUMBER [--repo OWNER/REPO ...] [--stale-days N] "
+            "[--status-field F --done D --in-progress P --waiting W] [--json]")
+    try:
+        stale_days = float(flags["--stale-days"])
+    except ValueError:
+        die("--stale-days must be a number")
+    owner, number = pos[0], int(pos[1])
+    items = board_items(owner, number, flags["--status-field"])
+    now = datetime.now(timezone.utc)
+    found, on_board = [], set()
+
+    def add(kind, c, detail):
+        found.append({"kind": kind, "url": c["url"], "title": c["title"], "detail": detail})
+
+    for it in items:
+        c = it.get("content") or {}
+        if not c.get("url"):
+            continue
+        on_board.add(c["url"])
+        status = (it.get("status") or {}).get("name")
+        if c["state"] in ("CLOSED", "MERGED") and status != flags["--done"]:
+            add("closed-not-done", c, "closed, but status is %s" % (status or "not set"))
+        if status == flags["--in-progress"] and c["state"] == "OPEN":
+            last = max(parse_time(t) for t in (it.get("updatedAt"), c.get("updatedAt")) if t)
+            days = (now - last).total_seconds() / 86400
+            if days > stale_days:
+                add("stale", c, "in progress, no update for %d days" % int(days))
+        if status == flags["--waiting"] and c["__typename"] == "Issue" and c["state"] == "OPEN":
+            blockers = (c.get("blockedBy") or {}).get("nodes") or []
+            wf = waiting_for(it)
+            if not any(b.get("state") == "OPEN" for b in blockers) \
+                    and (not wf or ISSUE_REF.search(wf)):
+                add("waiting-unlinked", c, "waiting with no open blocked-by issue: link the "
+                    "blocking issue as blocked by, or write the outside wait in Waiting for")
+        sm = c.get("subIssuesSummary") or {}
+        total = sm.get("total") or 0
+        if c["__typename"] == "Issue" and c["state"] == "OPEN" and total \
+                and sm.get("completed") == total:
+            add("upkeep-due", c, "all %d sub-issues are closed: close it or plan the next phase" % total)
+    for repo in repos:
+        for pr in open_prs(repo):
+            if pr["url"] not in on_board:
+                add("not-on-board", pr, "open pull request in %s is not on the board" % repo)
+    for f in found:
+        if as_json:
+            print(json.dumps(f))
+        else:
+            print("%s: %s (%s) - %s" % (f["kind"], f["title"], f["url"], f["detail"]))
+    return 0
+
+
+sys.exit(main(sys.argv[1:]))

@@ -26,10 +26,27 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
 
+  docs:
+    name: Docs (docs-check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Docs touched or a reason given
+        if: github.event_name == 'pull_request'
+        run: bin/docs-check touched --base "$BASE_SHA"
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+      - name: Docs within budget
+        run: bin/docs-check budget
+
   ci-ok:
     name: CI OK
     if: always()
-    needs: [test]
+    needs: [test, docs]
     runs-on: ubuntu-latest
     steps:
       - name: Fail unless every job succeeded
