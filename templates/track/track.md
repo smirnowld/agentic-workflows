@@ -16,7 +16,7 @@ Where the track's direction lives; the lead reads these, never copies them here.
 
 ## Repositories
 
-The main checkouts the lead reads, also listed in `.claude/settings.json`.
+The main checkouts the lead reads, also listed in `.claude/settings.json`; the start check counts the same repositories (its config lists them).
 
 | Repository | What it holds |
 |---|---|

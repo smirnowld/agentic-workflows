@@ -15,7 +15,7 @@ The lead starts coordinators, not implementers. A coordinator runs its own subag
 
 ## What the lead picks next
 
-The [lead skill](../skills/lead/SKILL.md) sets the order, the same on every track: fires, work in flight, P1 items, the current phase's next work package (with related P2 and P3 items), other P2 items, upkeep, then scoping the next phase. The maintainer's explicit ask overrides it. While the cap or more items wait on the maintainer, only fires start. Docs change with the work, and drift becomes an upkeep work item the lead starts itself; changes to plan or roadmap content are proposed to the maintainer as decisions.
+The [lead skill](../skills/lead/SKILL.md) sets the order, the same on every track: fires, work in flight, P1 items, the current phase's next work package (with related P2 and P3 items), other P2 items, upkeep, then scoping the next phase. The maintainer's explicit ask overrides it. While the cap or more items wait on the maintainer, only fires start. The count covers the track's own repositories, and the cap is set in the track's start-check config ([start check](start-check.md)); a session outside a track isn't capped. Docs change with the work, and drift becomes an upkeep work item the lead starts itself; changes to plan or roadmap content are proposed to the maintainer as decisions.
 
 ## The track folder
 
