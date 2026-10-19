@@ -14,7 +14,15 @@ The page covers everything since it was last built, so a missed day loses nothin
 
 A heading that counts: how many items need the maintainer, how many finished, since when.
 
-**Needs you.** Only the maintainer's decisions and steps, oldest first.
+**Needs you.** Only the maintainer's decisions and steps. In this order:
+
+
+1. P1 notices (below).
+2. Steps that hold up started work, each with what it holds up. The group's heading shows the count against the track's cap ("4 of 5") when the page knows it. A step holds up started work when an open issue it blocks ("blocked by" link) has board Status In progress, In review or Waiting.
+3. Steps that block a Ready item: "unblocks the next work item: TITLE (LINK)". Such a step unblocks the lead's next work item; it does not hold up started work.
+4. Other items whose next actor is the maintainer, oldest first.
+
+The page finds groups 2 and 3 from each maintainer step's `blocking` issues and their board Status (GraphQL `blocking{nodes{state projectItems{nodes{fieldValueByName(name:"Status"){...on ProjectV2ItemFieldSingleSelectValue{name}}}}}}`).
 
 - A P1 notice: every open item whose Priority is P1 shows first, as one line, "P1 now: TITLE (LINK). Lower it?". Notices take effect at once, don't count in the heading's count, and leave the page once the item is closed or no longer P1.
 
