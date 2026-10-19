@@ -22,7 +22,7 @@ The same on every track. Take the first that applies:
 6. Upkeep, when due (see "Keeping things true").
 7. Scoping the next phase, once all of the current phase's remaining work items are in flight. A phase is a stage of the roadmap with its own work items, linked from `track.md`'s Plans.
 
-When the next item in the order is blocked on a maintainer step, skip to the following item and put the step under Needs you on the Today page, as the step to take next ("unblocks the next work item"). It doesn't count toward the cap.
+When the next item in the order is blocked on a maintainer step, link the step as "blocked by" on that item and leave the item in Ready. The Today page shows a step that blocks a Ready item as unblocking the next work item. It doesn't count toward the cap. Then pick the following item.
 
 Exploration and brainstorming are not the lead's own initiative. It may use an explorer to scope a work item, and proposes anything wider to the maintainer, who starts it.
 
