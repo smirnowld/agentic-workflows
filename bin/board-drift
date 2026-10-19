@@ -3,6 +3,7 @@
 
   board-drift OWNER NUMBER [--repo OWNER/REPO ...] [--stale-days 7]
               [--status-field Status] [--done Done] [--in-progress "In progress"]
+              [--waiting Waiting]
               [--json]
 
 Findings:
@@ -10,11 +11,18 @@ Findings:
   not-on-board     an open pull request in a given repository is not on the board
   stale            an in-progress item has had no update for more than stale-days
   upkeep-due       an open issue on the board whose sub-issues are all closed
+  waiting-unlinked an open issue in the waiting status with no open "blocked by"
+                   issue, whose "Waiting for" field is empty or names an issue
+                   (#123 or a github.com issue or pull request URL): link the
+                   blocking issue as blocked by, or write the outside wait in
+                   Waiting for. A wait in words is not flagged; drafts and
+                   pull requests are not checked.
 
 Prints one line per finding, or one JSON object per finding (kind, url, title,
 detail) with --json. Exits 0 with findings; non-zero only on errors.
 """
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -30,9 +38,17 @@ query($owner: String!, $number: Int!, $field: String!, $after: String) {
           status: fieldValueByName(name: $field) {
             ... on ProjectV2ItemFieldSingleSelectValue { name }
           }
+          fieldValues(first: 30) {
+            nodes {
+              ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2FieldCommon { name } } }
+            }
+          }
           content {
             __typename
-            ... on Issue { url title state updatedAt subIssuesSummary { total completed } }
+            ... on Issue {
+              url title state updatedAt subIssuesSummary { total completed }
+              blockedBy(first: 50) { nodes { state } }
+            }
             ... on PullRequest { url title state updatedAt }
           }
         }
@@ -110,13 +126,26 @@ def open_prs(repo):
         after = page["pageInfo"]["endCursor"]
 
 
+ISSUE_REF = re.compile(r"#\d+|github\.com/[^\s/]+/[^\s/]+/(?:issues|pull)/\d+", re.I)
+
+
+def waiting_for(item):
+    """The text of the "Waiting for" field (name matched ignoring case), or ""."""
+    for v in (item.get("fieldValues") or {}).get("nodes") or []:
+        name = ((v or {}).get("field") or {}).get("name") or ""
+        if name.strip().lower() == "waiting for":
+            return (v.get("text") or "").strip()
+    return ""
+
+
 def parse_time(s):
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
 def main(argv):
     pos, repos, flags = [], [], {"--stale-days": "7", "--status-field": "Status",
-                                 "--done": "Done", "--in-progress": "In progress"}
+                                 "--done": "Done", "--in-progress": "In progress",
+                                 "--waiting": "Waiting"}
     as_json = False
     while argv:
         a = argv.pop(0)
@@ -132,7 +161,7 @@ def main(argv):
             pos.append(a)
     if len(pos) != 2 or not pos[1].isdigit():
         die("usage: board-drift OWNER NUMBER [--repo OWNER/REPO ...] [--stale-days N] "
-            "[--status-field F --done D --in-progress P] [--json]")
+            "[--status-field F --done D --in-progress P --waiting W] [--json]")
     try:
         stale_days = float(flags["--stale-days"])
     except ValueError:
@@ -158,6 +187,13 @@ def main(argv):
             days = (now - last).total_seconds() / 86400
             if days > stale_days:
                 add("stale", c, "in progress, no update for %d days" % int(days))
+        if status == flags["--waiting"] and c["__typename"] == "Issue" and c["state"] == "OPEN":
+            blockers = (c.get("blockedBy") or {}).get("nodes") or []
+            wf = waiting_for(it)
+            if not any(b.get("state") == "OPEN" for b in blockers) \
+                    and (not wf or ISSUE_REF.search(wf)):
+                add("waiting-unlinked", c, "waiting with no open blocked-by issue: link the "
+                    "blocking issue as blocked by, or write the outside wait in Waiting for")
         sm = c.get("subIssuesSummary") or {}
         total = sm.get("total") or 0
         if c["__typename"] == "Issue" and c["state"] == "OPEN" and total \

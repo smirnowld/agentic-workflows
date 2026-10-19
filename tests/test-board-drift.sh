@@ -59,6 +59,42 @@ GH
 out=$(python3 "$tool" ORG 1 --status-field Stage --done Shipped --in-progress Doing --json)
 echo "$out" | grep -q 'Properly done'; check "custom done name: Done is no longer done" 0 $?
 echo "$out" | grep -q 'Forgotten work'; check "custom in-progress name: nothing stale" 1 $?
+# waiting-unlinked: Waiting items need an open blocked-by link, or an outside wait in words
+cat > "$tmp/bin/gh" <<'GH'
+#!/bin/sh
+cat "$FAKE_ITEMS"
+GH
+wf() { printf ',"fieldValues":{"nodes":[{},{"text":"%s","field":{"name":"%s"}}]}' "$1" "${2:-Waiting for}"; }
+wi() { # number title blockers-json [waiting-for [field-name]]
+  printf '{"updatedAt":"%s","status":{"name":"Waiting"}%s,"content":{"__typename":"Issue","url":"%s/issues/%s","title":"%s","state":"OPEN","updatedAt":"%s","blockedBy":{"nodes":%s}}},' \
+    "$recent" "$( [ -n "$4" ] && wf "$4" "$5" )" "$u" "$1" "$2" "$recent" "$3"; }
+{
+ printf '{"data":{"organization":{"projectV2":{"items":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":['
+ wi 31 "Wait empty" '[]'
+ wi 32 "Wait hash" '[]' "#12"
+ wi 33 "Wait url" '[]' "see https://github.com/o/r/issues/7"
+ wi 34 "Wait words" '[]' "the customer signs"
+ wi 35 "Wait linked" '[{"state":"OPEN"}]'
+ wi 36 "Wait closed link" '[{"state":"CLOSED"}]'
+ wi 37 "Wait lower case field" '[]' "#12" "waiting FOR"
+ wi 38 "Wait words with open link" '[{"state":"OPEN"}]' "#12"
+ printf '{"updatedAt":"%s","status":{"name":"Waiting"},"content":{"__typename":"DraftIssue"}},' "$recent"
+ printf '{"updatedAt":"%s","status":{"name":"Waiting"},"content":{"__typename":"PullRequest","url":"%s/pull/39","title":"Wait pr","state":"OPEN","updatedAt":"%s"}}' "$recent" "$u" "$recent"
+ printf ']}}}}}'
+} > "$tmp/wait.json"
+out=$(FAKE_ITEMS="$tmp/wait.json" python3 "$tool" ORG 1 --json); check "waiting: exit 0" 0 $?
+w() { echo "$out" | grep '"waiting-unlinked"' | grep -q "$1"; check "waiting-unlinked $2: $1" "$3" $?; }
+w "Wait empty" flagged 0
+w "Wait hash" flagged 0
+w "Wait url" flagged 0
+w "Wait words\"" "not flagged" 1
+w "Wait linked" "not flagged" 1
+w "Wait closed link" flagged 0
+w "Wait lower case field" flagged 0
+w "Wait words with open link" "not flagged" 1
+w "Wait pr" "not flagged" 1
+n=$(echo "$out" | wc -l | tr -d ' '); check "waiting: five findings, draft ignored" 5 "$n"
+FAKE_ITEMS="$tmp/wait.json" python3 "$tool" ORG 1 > "$tmp/plain"; grep -q "^waiting-unlinked: Wait empty .* - .*blocked by" "$tmp/plain"; check "waiting: plain line says what to do" 0 $?
 # pagination: first page says more, second page ends
 cat > "$tmp/bin/gh" <<'GH'
 #!/bin/sh
