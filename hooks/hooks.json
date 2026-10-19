@@ -20,6 +20,15 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/launch-check.py\""
           }
         ]
+      },
+      {
+        "matcher": "mcp__ccd_session__start_session|mcp__ccd_session__spawn_task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/start-check.py\""
+          }
+        ]
       }
     ]
   }

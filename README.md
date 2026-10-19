@@ -43,6 +43,7 @@ How many sessions I touch is not a measure.
 - [AGENTS.md](AGENTS.md): the rules for changing this repository.
 - [docs/delegation.md](docs/delegation.md): who decides what, how a track's delegation table is written, and how agents are isolated.
 - [docs/lead.md](docs/lead.md): the lead, the sessions it starts, and its track folder.
+- [docs/start-check.md](docs/start-check.md): the check that stops new starts while too many steps wait on the maintainer.
 - [docs/routing.md](docs/routing.md) and [routing.json](routing.json): which model each role runs on, and why.
 - [docs/today.md](docs/today.md): the Today page.
 - [templates/](templates/): the brief and the track folder.
