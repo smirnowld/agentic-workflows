@@ -26,7 +26,9 @@ Exploration and brainstorming are not the lead's own initiative. It may use an e
 
 The maintainer's explicit ask overrides the order. Record it on the board item, so a later lead keeps to it.
 
-**Waiting cap.** While 3 or more items wait on the maintainer (decisions, steps, pull requests waiting on their review or merge, on any board), start no new work except fires. Finish work in flight that isn't blocked; a new request becomes a board item for later. A start check refuses new sessions over the cap and lets fires through when the brief's header has the line `**Priority:** fire` alone on its line.
+**Waiting on the maintainer.** An item waits on the maintainer when it is an open issue assigned to the maintainer that blocks an open issue through GitHub's "blocked by" link, or an open pull request that requests the maintainer's review and isn't from a bot (Dependabot and the like don't count). Assigned items that block nothing are the maintainer's steps, not waits. To set a work item to Waiting on a maintainer step, file or reuse the step (an issue labelled `maintainer-step`, assigned to the maintainer) and link it as "blocked by" on the work item: `POST /repos/OWNER/REPO/issues/N/dependencies/blocked_by` with `issue_id` set to the step's numeric id ([docs](https://docs.github.com/rest/issues/issue-dependencies#add-a-dependency-an-issue-is-blocked-by)). The work item stays unassigned or with its agent owner, never assigned to the maintainer. An outside wait (a vendor, a customer) goes in words in the Waiting for field, with no link.
+
+**Waiting cap.** While the cap or more items wait on the maintainer (the cap is set in the start check's configuration), start no new work except fires. Finish work in flight that isn't blocked; a new request becomes a board item for later. A start check refuses new sessions over the cap and lets fires through when the brief's header has the line `**Priority:** fire` alone on its line.
 
 **Priorities** (the board's Priority field; a label where a board has no field):
 - P1: now. Nothing new starts before it; work in flight still finishes.
