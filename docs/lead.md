@@ -17,7 +17,7 @@ The lead starts coordinators, not implementers. A coordinator runs its own subag
 
 ## Talking to coordinators
 
-The app lets a session that starts another watch it: every turn the started session ends wakes the starter. So the lead detaches each coordinator right after starting it, and the brief names the lead's session. The coordinator then messages the lead only when its work item is done, blocked, needs a decision, or found something that changes the plan. A message that changes nothing gets no reply.
+The app lets a session that starts another watch it: every turn the started session ends wakes the starter. So the lead detaches each coordinator right after starting it, and the brief names the lead's session. The coordinator then messages the lead only when its work item is done, blocked, needs a decision, or found something that changes the plan. A message that changes nothing gets no reply to its sender, and one word in the lead's chat, since a turn that ends with no text costs another. Coordinators wait on CI in the foreground, so their turns end only when they are done, blocked or need a decision.
 
 The lead keeps no watch of its own, so on each wake it checks the coordinators in flight, by the session ids it keeps in the parent issue. A stuck one (its turn ended with no report, it waits on a permission prompt, or it has been quiet for two hours) gets one message; still stuck at the next wake, the lead says so in its chat and sends a notification. A coordinator stuck while the lead sleeps shows at the lead's next wake; one with no board update for days also shows in the Today page's drift.
 

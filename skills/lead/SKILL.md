@@ -69,7 +69,7 @@ One brief for one work item, from `templates/brief.md` in this plugin's reposito
 ## When you wake
 
 A coordinator messages you only when its work item is done, blocked, needs a decision, or found something that changes the plan.
-- A message that changes nothing (progress, an acknowledgement) gets no reply, and nothing is said in this chat; still run the check below before the turn ends.
+- A message that changes nothing (progress, an acknowledgement) gets no reply to its sender. Run the check below, then end the turn with one word in this chat ("Noted."): a turn that ends with no text makes the app ask for some, which costs another turn.
 - On every wake, check the coordinators in flight with the app's session tools, by the ids in the parent issue. One is stuck when its turn ended with no report, it waits on a permission prompt, or it has shown no activity for two hours. Message a stuck one once, asking for its state and what it waits on. If it is still stuck at your next wake, say so in this chat with what it waits on, and send a notification.
 
 ## Without asking
