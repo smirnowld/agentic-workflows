@@ -22,7 +22,7 @@ Not goals: provider neutrality, cloud sessions (every token must be visible), mo
 3. **Execution.** Roles: implementers, testers who use the product, and reviewers. Each runs on the model that measured best for it ([docs/routing.md](docs/routing.md)) and gets only its own context.
 4. **Controls.** A merge is the deploy. Rulesets, admission policies and RBAC; scoped identities, with secrets agents use but never see; budgets, an audit log, rollback. A lead starts no new work, except a fire, while too many of my steps or review requests hold up work already started ([docs/start-check.md](docs/start-check.md)).
 5. **Visibility.** The Today page ([docs/today.md](docs/today.md)): what needs me, what finished, what is stuck, with the board's drift ([bin/board-drift](bin/board-drift)).
-6. **Learning.** Notes captured mid-session with the `retro-note` skill, and a scheduled retro that reads them with the sessions and measures and proposes concrete changes. The retro is the one place the process changes.
+6. **Learning.** Notes captured mid-session with the `retro-note` skill, and a weekly retro I join (the `retro` skill) that reads them with the sessions, the drift and the measures and proposes concrete changes. The retro is the one place the process changes.
 
 ## Measures
 

@@ -34,7 +34,7 @@ Three words recur. A **track** is one area of work, split by purpose rather than
 
 - Act only through your own identity. Never use the maintainer's logins, keys, devices or browser.
 - Use a secret only through the tool your identity has for it. Never read, print, copy or commit a secret's value.
-- Paid CI minutes are part of the budget: use them when the work needs them. A run goes to the Today page first only when it costs far more than that job usually does, or when the month's projected use would pass the budget.
+- The budget is the whole organisation's, not a track's: work fits within the free plans (CI minutes, hosted services) where they do the job. A run or change that would pass a free plan's allowance, or bring the month's projected use past it, goes to the maintainer first; they approve every overage.
 - Ask before anything outward-facing or irreversible that the delegation table doesn't cover: publishing, messages, accounts, real people's data.
 
 ## State and docs
@@ -54,5 +54,5 @@ Three words recur. A **track** is one area of work, split by purpose rather than
 
 ## Learning
 
-- When something goes wrong, the maintainer records it with `retro-note`. Don't change the process yourself: the retro reads those notes and proposes changes.
+- When something goes wrong, the maintainer records it with `retro-note`. Don't change the process yourself: the weekly retro (the `retro` skill), which the maintainer joins, reads those notes and proposes changes.
 - Each retro also reads the current `board-drift` report, finds what caused each finding, and proposes a change to the setup. A cause found at more than one retro means the setup has a gap, not that someone forgot.

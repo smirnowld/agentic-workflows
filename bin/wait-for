@@ -1,7 +1,8 @@
 #!/bin/sh
 # Wait on GitHub until a PR's CI, a PR's merge or a workflow run ends, and
-# always end: on success, on failure and on any state it cannot read. Run it
-# as a background task so its exit wakes the session (the coordinate skill).
+# always end: on success, on failure and on any state it cannot read. The
+# coordinate skill runs it in the foreground with --deadline under the shell's
+# ten-minute timeout, and again on exit 6, so waiting ends no turn.
 #
 #   wait-for [-R OWNER/REPO] [--deadline MINUTES] pr-ci PR
 #   wait-for [-R OWNER/REPO] [--deadline MINUTES] pr-merged PR
@@ -23,7 +24,7 @@
 # means "keep waiting". Each poll writes one timestamped line to stderr.
 # WAIT_FOR_POLL (seconds, default 30) and WAIT_FOR_GRACE (seconds before
 # pr-ci starts asking whether any workflow run on the head exists, default
-# 600) exist for the self-test only.
+# 300, so "CI did not start" comes inside one foreground run) exist for the self-test only.
 set -u
 
 usage() {
@@ -170,7 +171,7 @@ pr-ci)
   read_gh checks gh api "repos/{owner}/{repo}/rules/branches/$base" --jq \
     '[.[] | select(.type=="required_status_checks") | .parameters.required_status_checks[] | select(.integration_id==15368) | .context] | if length == 0 then "none" else join("\n") end'
   [ "$checks" != none ] || finish 5 "unknown: $base requires no GitHub Actions check to wait on"
-  grace_s=${WAIT_FOR_GRACE:-600}
+  grace_s=${WAIT_FOR_GRACE:-300}
   runs= grace=$(( $(date +%s) + grace_s ))
   while IFS= read -r check <&3; do
     # Find the check's run on the head; until it starts, keep checking the PR.
