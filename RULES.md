@@ -41,6 +41,7 @@ Three words recur. A **track** is one area of work, split by purpose rather than
 
 - Status lives on the board, in pull requests and in CI. It is computed from them, never copied into a doc.
 - A multi-session plan lives in its initiative's parent issue. The lead keeps its state there as it goes, so a compaction or a new lead loses nothing.
+- Work a session decides to put off becomes an item on the board: the lead files it before its session ends, and a coordinator names it in its report for the lead to file. The item is linked "blocked by" what it waits for, or, when that isn't an issue, has it written in "Waiting for". It sits in Backlog, or Ready when it is next in order, never in Waiting until it is started; "Waiting for" is cleared or updated when it starts. A deferral kept only in a transcript or a doc gets lost.
 - Docs state what is true now; git history keeps the rest. Update a doc in place rather than adding one.
 
 ## Writing for the maintainer
