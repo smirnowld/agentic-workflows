@@ -50,10 +50,10 @@ A change that makes something easier to reach (opening a network path, granting 
 
 ### Runs are part of the work, within budget
 
-Agents start and re-run workflows in the repositories the track serves, paid minutes included. Two mechanisms limit this:
+Agents start and re-run workflows in the repositories the track serves, within the free plans' allowances. Two mechanisms limit this:
 
 - Jobs that deploy or release sit behind an environment that needs the maintainer's approval, so starting a run cannot reach them. A repository where such a job has no gate gets the gate first.
-- A budget check before each paid run sends it to the Today page only when it costs far more than that job usually does, or when the month's projected use would pass the budget. The provider's spending limit stays the hard cap.
+- A budget check before each run sends it to the maintainer first when it would pass a free plan's allowance or bring the month's projected use past it. The budget is the whole organisation's, not a track's. The provider's spending limit stays the hard cap.
 
 ### Money, secrets and accounts
 

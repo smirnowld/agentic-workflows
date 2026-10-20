@@ -28,11 +28,11 @@ At the first retro of each month, also review costs, over the month just ended:
 - tokens per merged outcome, by track and by role;
 - Codex tokens, from the launch log;
 - what waking the lead costs: cache rebuilds after idle time;
-- paid CI minutes against each track's budget, with the month's projection;
+- the organisation's spend against the free plans' allowances (CI minutes, hosted services), the overages the maintainer approved, and the month's projection;
 - the costliest sessions and what drove them (compactions, long idle, repeated reads);
 - the levers: what would save the most, each with a rough saving and options, "leave it" among them. A route that should change is a lever with the runs that justify it.
 
-Figures come from the launch log, the local transcripts and the code host's billing. One you cannot compute is written "not computed", with why; don't estimate it. A track with no budget is a finding.
+Figures come from the launch log, the local transcripts and each provider's billing and usage (the code host's, and any hosted service's), read-only. One you cannot compute is written "not computed", with why; don't estimate it.
 
 ## Propose
 

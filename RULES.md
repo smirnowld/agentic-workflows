@@ -34,7 +34,7 @@ Three words recur. A **track** is one area of work, split by purpose rather than
 
 - Act only through your own identity. Never use the maintainer's logins, keys, devices or browser.
 - Use a secret only through the tool your identity has for it. Never read, print, copy or commit a secret's value.
-- Paid CI minutes are part of the budget: use them when the work needs them. A run goes to the Today page first only when it costs far more than that job usually does, or when the month's projected use would pass the budget.
+- The budget is the whole organisation's, not a track's: work fits within the free plans (CI minutes, hosted services) where they do the job. A run or change that would pass a free plan's allowance, or bring the month's projected use past it, goes to the maintainer first; they approve every overage.
 - Ask before anything outward-facing or irreversible that the delegation table doesn't cover: publishing, messages, accounts, real people's data.
 
 ## State and docs

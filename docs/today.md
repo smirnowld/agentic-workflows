@@ -31,7 +31,7 @@ The page finds groups 2 and 3 from each maintainer step's `blocking` issues and 
 
 **Moving, or stuck.** Only what has waited longer than expected, with what it waits for. It also lists the findings of `board-drift` for the track's board and repositories: closed items not marked done, open pull requests not on the board, Waiting issues with no open "blocked by" link and no outside wait written in words in "Waiting for" (the start check can only count linked blockers), and In progress items with no update for the script's `--stale-days`. That setting covers In progress items only; the expected-wait rule covers Waiting items, so nothing is listed twice. Without the `read:project` scope the script exits 2 and the list shows as "not available". An open issue whose sub-issues are all closed (a finished phase or initiative) is worded as one plain line: all its parts are closed, close it or plan the next phase.
 
-**Measures.** One line: merged, reverted, lead tokens per merged outcome, paid minutes used against the month's budget.
+**Measures.** One line: merged, reverted, lead tokens per merged outcome, the organisation's spend this month against the free plans' allowances.
 
 ## How it's answered
 
