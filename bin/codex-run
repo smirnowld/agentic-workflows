@@ -18,7 +18,13 @@ nor @ includes. Launch and finish are appended to the launch log, like the hook'
 Exit codes: codex's own, 2 for a usage or routing problem.
 Codex flags: `codex exec --help` (codex-cli 0.162.1): -m/--model, -C/--cd,
 -s/--sandbox, -o/--output-last-message, -c key=value (TOML), `-` reads the
-prompt from stdin. Config key model_reasoning_effort and sandbox values:
+prompt from stdin. `--json` emits JSONL on stdout, including turn.completed
+with usage.input_tokens, usage.cached_input_tokens and usage.output_tokens:
+https://developers.openai.com/codex/noninteractive/
+The event stream is saved next to the report as REPORT.events.jsonl, so
+stdout and stderr stay as short as without --json; -o still writes the final message.
+Usage is summed across completed turns; missing or invalid fields stay null.
+Config key model_reasoning_effort and sandbox values:
 https://learn.chatgpt.com/docs/config-file/config-reference
 """
 import argparse
@@ -28,6 +34,7 @@ import re
 import subprocess
 import sys
 import time
+import tempfile
 
 SANDBOX = {"implementer": "workspace-write", "critical-reviewer": "read-only",
            "critical-reviewer-strongest": "read-only"}
@@ -129,7 +136,8 @@ def main():
     except Exception as e:
         die("cannot create the reports folder %s: %s" % (reports, e))
     report = os.path.join(reports, "%s-%s-%d.md" % (a.role, stamp, os.getpid()))
-    argv = ["codex", "exec",
+    events = report[:-3] + ".events.jsonl"
+    argv = ["codex", "exec", "--json",
             "-C", os.path.abspath(a.cwd),
             "-m", route["model"],
             "-c", 'model_reasoning_effort="%s"' % route["effort"],
@@ -142,13 +150,35 @@ def main():
              "kind": a.kind, "report": report}
     write_log(dict(entry, decision="launch"))
     try:
-        rc = subprocess.run(argv, input=full.encode(), stdout=sys.stderr).returncode
+        # A file for stdin avoids blocking on a full output pipe while feeding a brief.
+        usage = {key: None for key in ("input_tokens", "cached_input_tokens", "output_tokens")}
+        with tempfile.TemporaryFile() as prompt_input:
+            prompt_input.write(full.encode())
+            prompt_input.seek(0)
+            with open(events, "wb") as event_log, \
+                    subprocess.Popen(argv, stdin=prompt_input, stdout=subprocess.PIPE) as proc:
+                for line in proc.stdout:
+                    event_log.write(line)
+                    try:
+                        event = json.loads(line)
+                    except (ValueError, UnicodeError):
+                        continue
+                    if not isinstance(event, dict) or event.get("type") != "turn.completed":
+                        continue
+                    counts = event.get("usage")
+                    if not isinstance(counts, dict):
+                        continue
+                    for key in usage:
+                        value = counts.get(key)
+                        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                            usage[key] = (usage[key] or 0) + value
+                rc = proc.wait()
     except FileNotFoundError:
         write_log(dict(entry, decision="error", error="codex not found on PATH"))
         die("codex is not on PATH")
     if rc < 0:  # killed by a signal: the shell's convention
         rc = 128 - rc
-    write_log(dict(entry, decision="finished", exit_code=rc))
+    write_log(dict(entry, decision="finished", exit_code=rc, **usage))
     if rc == 0 or os.path.isfile(report):
         print(report)
     return rc

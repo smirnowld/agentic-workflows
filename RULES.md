@@ -4,7 +4,7 @@ Every session in a project on this setup starts with these rules. The project's 
 
 Where a mechanism enforces a rule, the rule names it. The mechanism is what counts; the rule explains it. Every mechanism has a test that shows it fires, and one that fails open (lets everything through when it breaks) raises an alert rather than going quiet. Add a hook only for a mistake that has happened, and keep count of what it blocks and what it blocks wrongly.
 
-Three words recur. A **track** is one area of work, split by purpose rather than by host (CI, say), with its own lead and board. The **fence** is what agents may do on their own, set by the delegation table and enforced by CODEOWNERS, rulesets and access rights set outside the session. The **Today page** ([docs/today.md](docs/today.md)) is where the maintainer sees what needs them.
+Three words recur. A **track** is one area of work, split by purpose rather than by host (CI, say), with its own lead and board. The **fence** is what agents may do on their own, set by the delegation table and enforced by CODEOWNERS, rulesets and access rights set outside the session. The **Today page** ([docs/today.md](docs/today.md)) is built each weekday morning: the state the lead starts from, and what needs the maintainer. What comes up later in the day is said in the lead's chat.
 
 ## Who decides
 
