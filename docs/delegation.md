@@ -6,7 +6,7 @@ A row with no mechanism is a wish. Building the mechanism is fence work and come
 
 ## Who decides
 
-- **Agents decide, act and merge** inside the fence: the limits that mechanisms enforce (access rights, admission policies, rulesets, scoped identities). That includes running commands and using the secrets their identity holds, with checks green and an independent review passed. Recording a decision made in the session as a new decision record (ADR), marked accepted, is theirs too.
+- **Agents decide, act and merge** inside the fence: the limits that mechanisms enforce (access rights, admission policies, rulesets, scoped identities), set outside the session: on GitHub, the hosts and the other services agents' identities reach. That includes running commands and using the secrets their identity holds, with checks green and an independent review passed. Recording a decision made in the session as a new decision record (ADR), marked accepted, is theirs too. A session's own settings (denied tools, its permission mode) and hooks such as the start check and the launch check, with their config, keep work on track but are not the fence: they can be worked around from inside the session, so no guard of the fence may depend on them alone. Loosening them still goes to the maintainer.
 - **The maintainer decides**:
   - direction: vision, roadmap, users, design taste, high-impact standards;
   - reversing, superseding or amending an accepted ADR;
