@@ -1,6 +1,6 @@
 # Rules for changing this repository
 
-This repository is public and describes the setup as it works now. These rules apply to every change here, on top of [RULES.md](RULES.md).
+This repository is public and describes the setup as it works now. It runs on agentic-workflows itself: its rules are [RULES.md](RULES.md), which the plugin, switched on in `.claude/settings.json`, loads into every Claude session here once the README's install step has run. The rules below apply to every change here, on top of them.
 
 ## Current state only
 
