@@ -1,6 +1,6 @@
 # The lead
 
-Each track has one lead: a Claude session that turns the track's intent into work, keeps its board, and brings the maintainer only what the delegation table says to. It doesn't build anything itself.
+Each track has one lead at a time: a Claude session that turns the track's intent into work, keeps its board, and brings the maintainer only what the delegation table says to. It doesn't build anything itself.
 
 ## The chain
 
@@ -11,7 +11,11 @@ Each track has one lead: a Claude session that turns the track's intent into wor
 | Coordinator | One work item from one brief, in its own worktree: coordinates, verifies, merges inside the fence | the brief and the work item's files |
 | Subagents | Implementer, tester, explorer, reviewers | only their own slice |
 
+A new lead first checks that no other lead is live in the track folder; if one is, it asks that lead to write its state to the board and stop before taking over.
+
 The lead starts coordinators, not implementers. A coordinator runs its own subagents and sends back a few lines: what changed, the proof, what needs the maintainer. The lead's context grows by one short report per work item, not by the work itself.
+
+The app starts a session only in a turn that began with the maintainer's own message. When a coordinator's report wakes the lead, it can't start the next work item itself: it says in its chat what is ready to start and sends a notification, and the maintainer's next message there lets it start. The lead's chat is where the maintainer talks to the track.
 
 ## What the lead picks next
 

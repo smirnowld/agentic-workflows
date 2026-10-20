@@ -18,7 +18,9 @@ The hook asks GitHub's GraphQL API through `gh`, which needs the `project` scope
 - A start whose brief header has the line `**Priority:** fire` always goes ahead. The header is the part of the prompt before its first `## ` heading (the whole prompt if it has none); a fire line under a later heading doesn't count. The value must be exactly `fire`, so a template placeholder such as `P1 | P2 | fire` doesn't pass; an HTML comment may follow it. Also accepted: `**Priority: fire**`, `Priority: fire`, a leading `- `, `* ` or `> `, Windows line endings, and any case.
 - No config (a session outside a track), a bad config, or `gh` failing or timing out: the start goes ahead, like the launch check, so a broken check never blocks a fire.
 
-Each decision (`allow`, `deny`, `fire`, `not-configured`, `error`) is one line in the launch log, `launch-log.jsonl` in `${AGENTIC_LOG_DIR:-$HOME/.claude/agentic-workflows}`, with the count and cap when they were read.
+Each decision (`allow`, `deny`, `fire`, `not-configured`, `rules-late`, `error`) is one line in the launch log, `launch-log.jsonl` in `${AGENTIC_LOG_DIR:-$HOME/.claude/agentic-workflows}`, with the count and cap when they were read.
+
+The start check logs its own decision before the app acts. After the app acts, [hooks/start-result.py](../hooks/start-result.py) logs a `start-result` line with `result` set to `started`, `proposed`, `refused`, `unknown` or `error`, the started session ID when present, and the first 200 characters of a refusal. Count real starts from those `start-result` lines whose `result` is `started`. Calls rejected before execution do not fire the result hook. Hook errors log `result: error` with the error text; if the log cannot be written, the hook prints a one-line note to stderr. It always exits successfully and makes no permission decision.
 
 ## The config file
 
@@ -37,3 +39,11 @@ Per track: `.claude/agentic-workflows.json` in the track's project directory (`$
 ## What the maintainer sees
 
 Nothing while under the cap. At the cap, the lead gets a refusal that says how many items are waiting on the maintainer, lists up to five URLs, and what to do instead: finish work in flight that isn't blocked, and put the new request on the board for later. Clearing an item (closing it, unlinking it from what it blocks, unassigning it, or merging the pull request) lifts the cap; no other step is needed.
+
+## Rules check
+
+[hooks/rules-check.py](../hooks/rules-check.py) runs before every tool call. SessionStart records that it ran by calling the hook with `--mark`, which creates a session marker under `rules-loaded/` beside the launch log. An existing marker is left alone. Without a marker, the check reads the plugin's rules, creates the marker exclusively and supplies the rules as tool context. `CLAUDE_PLUGIN_ROOT` names the plugin root; when unset, the hook uses its own location.
+
+The check logs `rules-late` when it supplies rules. An error logs `error` with the error text; if the log cannot be written, the hook prints a one-line note to stderr. Rules context is printed before logging so a log failure cannot prevent delivery. The check always exits successfully and makes no permission decision.
+
+The marker records that the SessionStart hook ran. If the app ran that hook but dropped its output, the check cannot tell.

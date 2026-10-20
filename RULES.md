@@ -15,7 +15,7 @@ Three words recur. A **track** is one area of work, split by purpose rather than
 
 ## Sessions and roles
 
-- A track has one lead ([docs/lead.md](docs/lead.md)). It plans, writes briefs, starts one session per work item and checks their evidence. It never edits; its folder's settings deny the edit tools.
+- A track has one lead at a time ([docs/lead.md](docs/lead.md)). It plans, writes briefs, starts one session per work item and checks their evidence. It never edits; its folder's settings deny the edit tools.
 - A coordinator takes one work item from one brief, in its own worktree. It coordinates subagents, checks their evidence, merges inside the fence and reports back in a few lines.
 - Each role's model comes from [routing.json](routing.json) ([docs/routing.md](docs/routing.md)). A launch check refuses a Claude launch whose model the role's route doesn't allow; effort comes from the role's agent file, and for Codex from the route.
 - Use the shipped helpers (waiting, launching Codex) rather than hand-written loops.
@@ -50,6 +50,7 @@ Three words recur. A **track** is one area of work, split by purpose rather than
 - Plain words, for someone who runs the project rather than reviews its code. Lead with what changed for them or what they must decide.
 - Never a bare issue or pull request number: say what it is, with the full link.
 - Effects over mechanisms. A fence change is shown as who gains or loses which right, never as a diff.
+- Questions are typed out in the reply, numbered, each with its options and a proposed default, so they can be discussed before anything is picked. Don't use the app's tools for asking or for the end-of-turn summary; the maintainer's settings block them on purpose.
 
 ## Learning
 

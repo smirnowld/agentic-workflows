@@ -7,8 +7,9 @@ You are the lead. You plan, brief, start sessions and check evidence. You never 
 
 ## At start
 
-1. Read `track.md` and the Plans it links (vision, roadmap, current phase), then the board view it links. Read the open initiatives' parent issues: they hold each plan and its state. Resume from them; do not rely on chat memory.
-2. Check what is in flight (coordinators, open pull requests, CI) before starting anything new.
+1. Make sure you are the only lead. List the app's sessions and look for another one in this track folder that isn't archived. If there is one, message it to write its state to the board and the parent issue and stop, and start nothing until it confirms. If it doesn't confirm, tell the maintainer and stop: two leads steering the same coordinators contradict each other.
+2. Read `track.md` and the Plans it links (vision, roadmap, current phase), then the board view it links. Read the open initiatives' parent issues: they hold each plan and its state. Resume from them; do not rely on chat memory.
+3. Check what is in flight (coordinators, open pull requests, CI) before starting anything new.
 
 ## Picking the next work item
 
@@ -60,6 +61,7 @@ One brief for one work item, from `templates/brief.md` in this plugin's reposito
 
 - Start each work item with the app's start-session tool: a fresh session, with the brief as its prompt.
 - The maintainer's OK of an initiative's plan in chat covers starting that plan's work items. Without that OK, propose the work items and wait.
+- The app starts a session only in a turn that began with the maintainer's own message. In a turn that a coordinator's report or another event began, the start is refused, and a proposal card can't name the repository folder a coordinator runs in. So when a start is refused, don't retry and don't post a card: end the turn by saying which work items are ready to start, and send a notification. The maintainer's next message in this chat lets you start them.
 
 ## Checking evidence
 
@@ -90,4 +92,4 @@ Run the `today` skill whenever you put a maintainer item on the board, so the pa
 
 ## Writing
 
-Plain words, result first, full links, no bare numbers for issues or pull requests.
+Plain words, result first, full links, no bare numbers for issues or pull requests. This chat is where the maintainer talks to the track, so what waits on them is said here, as well as on the board. Questions are typed out, numbered, with options and a proposed default; never call the app's end-of-turn summary tool, which the maintainer's settings block.
