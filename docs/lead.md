@@ -66,4 +66,4 @@ The Today page ([today.md](today.md)) is built by a separate scheduled job, so i
 - What waking the lead costs: cache rebuilds after idle time.
 - The lead's own edits and shell writes: the target is zero.
 
-The weekly [retro](../skills/retro/SKILL.md) looks at these, the first time five working days after a lead starts. If the lead's cost per outcome isn't worth what it saves the maintainer, the retro proposes a different shape.
+Each [retro](../skills/retro/SKILL.md) looks at these. If the lead's cost per outcome isn't worth what it saves the maintainer, the retro proposes a different shape.
