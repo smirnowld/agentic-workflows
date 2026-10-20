@@ -44,4 +44,4 @@ One or two sentences: the outcome, and how anyone can tell it's done.
 
 ## Report back
 
-A few lines to the lead: what changed for the maintainer, the proof with links, anything left and who acts next.
+A few lines to the lead, by SendMessage to the lead session and in your own chat: what changed for the maintainer, the proof with links, anything left and who acts next.

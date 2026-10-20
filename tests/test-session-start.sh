@@ -17,6 +17,7 @@ echo "session-start output: $n characters"
 [ "$n" -lt 9500 ] || bad "output is $n characters, over the 9,500 cap"
 # Without CLAUDE_PLUGIN_ROOT it finds the root from its own place.
 echo '{"session_id":"test"}' | env -u CLAUDE_PLUGIN_ROOT sh "$root/hooks/session-start.sh" | grep -q '^# Rules$' || bad "no rules without CLAUDE_PLUGIN_ROOT"
+[ -e "$tmp/log/rules-loaded/test" ] || bad "--mark did not record the session from stdin"
 ! grep -q '"decision": *"error"' "$tmp/log/launch-log.jsonl" 2>/dev/null || bad "the hook logged an error"
 [ "$fail" = 0 ] && echo "ok"
 exit "$fail"

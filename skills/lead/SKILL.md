@@ -63,14 +63,14 @@ One brief for one work item, from `templates/brief.md` in this plugin's reposito
 - Start each work item with the app's start-session tool: a fresh session, with the brief as its prompt, and the coordinator route's model and effort from `routing.json`. The start check denies another model or effort.
 - The maintainer's OK of an initiative's plan in chat covers starting that plan's work items. Without that OK, propose the work items and wait.
 - Right after a start, detach the new session with the app's detach tool, so its turns don't wake you; only its messages do. Record its session id in the parent issue's state, next to its work item. If the detach is refused, carry on and say so in this chat.
-- The brief's `**Lead session:**` line holds your own session id, as the app's session list shows it, so the coordinator can message you.
+- The brief's `**Lead session:**` line holds your own session id, as the app's session list shows it, so the coordinator can message you. Start it in your own permission mode: the app holds a message between sessions in different modes for the maintainer's approval.
 - The app starts a session only in a turn that began with the maintainer's own message. In a turn that a coordinator's report or another event began, the start is refused, and a proposal card can't name the repository folder a coordinator runs in. So when a start is refused, don't retry and don't post a card: end the turn by saying which work items are ready to start, and send a notification. The maintainer's next message in this chat lets you start them.
 
 ## When you wake
 
 A coordinator messages you only when its work item is done, blocked, needs a decision, or found something that changes the plan.
-- A message that changes nothing (progress, an acknowledgement) gets no reply. End the turn without one, and say nothing in this chat.
-- On every wake, also check the coordinators in flight with the app's session tools, by the ids in the parent issue. One is stuck when its turn ended with no report, it waits on a permission prompt, or it has shown no activity for two hours. Message a stuck one once, asking for its state and what it waits on. If it is still stuck at your next wake, say so in this chat with what it waits on, and send a notification.
+- A message that changes nothing (progress, an acknowledgement) gets no reply, and nothing is said in this chat; still run the check below before the turn ends.
+- On every wake, check the coordinators in flight with the app's session tools, by the ids in the parent issue. One is stuck when its turn ended with no report, it waits on a permission prompt, or it has shown no activity for two hours. Message a stuck one once, asking for its state and what it waits on. If it is still stuck at your next wake, say so in this chat with what it waits on, and send a notification.
 
 ## Without asking
 
