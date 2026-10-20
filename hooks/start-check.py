@@ -196,19 +196,34 @@ def deny_reason(count, cap, urls):
 
 def main():
     entry = {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-             "session": None, "cwd": None, "role": None, "model": None, "decision": "error"}
+             "session": None, "cwd": None, "role": None, "model": None, "model_from": "inherited",
+             "effort": None, "effort_from": "inherited", "decision": "error"}
     out = None
     try:
         data = json.load(sys.stdin)
         entry.update(session=data.get("session_id"), cwd=data.get("cwd"), tool=data.get("tool_name"))
         ti = data.get("tool_input")
-        prompt = str(ti.get("prompt") or "") if isinstance(ti, dict) else ""
+        ti = ti if isinstance(ti, dict) else {}
+        prompt = str(ti.get("prompt") or "")
+        for field in ("model", "effort"):
+            entry[field] = ti.get(field)
+            entry[field + "_from"] = "input" if ti.get(field) is not None else "inherited"
         try:
             cap, who, repos, started = load_config(data.get("cwd"))
         except NotConfigured:
             entry["decision"] = "not-configured"
         else:
-            if FIRE.search(header(prompt)):
+            root = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            with open(os.path.join(root, "routing.json")) as f:
+                route = json.load(f)["roles"]["coordinator"]
+            model = entry["model"]
+            model_matches = model is None or str(model).lower() == route["model"].lower() or route["model"].lower() in re.split(r"[^a-z0-9.]+", str(model).lower())
+            if not model_matches or (entry["effort"] is not None and str(entry["effort"]).lower() != str(route["effort"]).lower()):
+                entry["decision"] = "deny"
+                reason = "routing.json runs the coordinator on %s with effort %s (docs/routing.md). Set model and effort to that route." % (route["model"], route["effort"])
+                entry["reason"] = reason
+                out = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": reason}}
+            elif FIRE.search(header(prompt)):
                 entry["decision"] = "fire"
             else:
                 notes = []

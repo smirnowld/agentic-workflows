@@ -31,7 +31,7 @@ START = r"(^|[\s;&|(])"
 
 # Command shapes that write, for the lead's folder.
 WRITE_PATTERNS = [
-    ("redirect", re.compile(r"(^|[^<>&0-9])>>?(?!&)(?!\s*/dev/null(\s|$|[;&|)]))")),
+    ("redirect", re.compile(r"(^|[^<>&0-9])>>?(?![>&])(?!\s*/dev/(?:null|stdout|stderr|tty|fd/[0-9]+)(\s|$|[;&|)]))")),
     ("tee", re.compile(START + r"tee(\s|$)")),
     ("sed -i", re.compile(START + r"sed\s+(\S+\s+)*?(-[a-zA-Z]*i|--in-place)")),
     ("mv", re.compile(START + r"mv(\s|$)")),
@@ -47,15 +47,29 @@ GIT_WRITES = {"commit", "push", "apply", "add", "rm", "mv", "reset", "checkout",
               "rebase", "cherry-pick", "revert", "tag", "stash", "restore", "clean", "pull", "am"}
 
 
+# Flags that put git tag in list mode; others (--sort, --format, -i) only
+# modify a listing, so with a tag name they still create the tag.
+TAG_LISTS = ("-l", "--list", "--contains", "--no-contains", "--points-at", "--merged",
+             "--no-merged")
+
+
 def git_writes(code):
-    """True when a git command in CODE writes; tag -l, a bare tag and
+    """True when a git command in CODE writes; tag listing forms and
     stash list/show only read."""
     for m in GIT.finditer(code):
         sub, arg = m.group(2), m.group(3)
         if sub not in GIT_WRITES:
             continue
-        if sub == "tag" and (arg is None or arg in ("-l", "--list")):
-            continue
+        if sub == "tag":
+            args = re.split(r"[;&|\n]", code[m.end(2):], maxsplit=1)[0].split()
+            mutates = any(re.fullmatch(r"-[a-zA-Z]*[dfasum][a-zA-Z]*", a)
+                          or a in ("--delete", "--force", "--annotate", "--sign", "--local-user", "--message", "--file")
+                          or a.startswith(("--message=", "--file=", "--local-user=")) for a in args)
+            lists = any(a in TAG_LISTS or a.startswith(tuple(f + "=" for f in TAG_LISTS))
+                        or re.fullmatch(r"-n[0-9]*", a) for a in args) \
+                or all(a.startswith("-") for a in args)
+            if not mutates and (arg is None or lists):
+                continue
         if sub == "stash" and arg in ("list", "show"):
             continue
         return True
@@ -102,8 +116,8 @@ def model_ok(given, allowed):
     return any(g == a.lower() or a.lower() in re.split(r"[^a-z0-9.]+", g) for a in allowed)
 
 
-def agent_file_model(role):
-    """The model: line of the plugin's agents/ROLE.md frontmatter, or None."""
+def agent_file_value(role, field):
+    """A scalar line of the plugin's agents/ROLE.md frontmatter, or None."""
     if not re.fullmatch(r"[a-z0-9-]+", role):
         return None
     try:
@@ -112,7 +126,7 @@ def agent_file_model(role):
     except OSError:
         return None
     m = re.match(r"---\n(.*?)\n---\n", text, re.S)
-    mm = re.search(r"^model:\s*(\S+)\s*$", m.group(1), re.M) if m else None
+    mm = re.search(r"^" + re.escape(field) + r":\s*(\S+)\s*$", m.group(1), re.M) if m else None
     return mm.group(1) if mm else None
 
 
@@ -121,7 +135,16 @@ def check_agent(data, entry):
     st = str(ti.get("subagent_type") or "")
     role = st[len(PREFIX):] if st.startswith(PREFIX) else ""
     model = ti.get("model")
-    entry.update(role=role or None, model=model)
+    effort = ti.get("effort")
+    effort_from = "input" if effort is not None else None
+    if effort is None and role:
+        effort = agent_file_value(role, "effort")
+        effort_from = "agent file" if effort is not None else None
+    entry.update(role=role or None, model=model, effort=effort, effort_from=effort_from)
+    if role == "implementer":
+        match = re.match(r"^\s*(trivial|specified|symptom-bug|native-mobile)\s*:",
+                         str(ti.get("description") or ""), re.I)
+        entry["kind"] = match.group(1).lower() if match else None
     with open(os.path.join(plugin_root(), "routing.json")) as f:
         roles = json.load(f).get("roles", {})
     spec = roles.get(role)
@@ -129,7 +152,12 @@ def check_agent(data, entry):
     if not allowed:
         entry["decision"] = "pass"
         return None
-    effective = model or agent_file_model(role)
+    effective = model or agent_file_value(role, "model")
+    if role == "implementer" and entry.get("kind"):
+        kind_spec = spec.get("kinds", {}).get(entry["kind"], {})
+        routes = [kind_spec.get("primary"), kind_spec.get("fallback")]
+        entry["route_ok"] = bool(effective and model_ok(effective, [r["model"] for r in routes
+                                              if r and r.get("family") == "claude"]))
     if effective and model_ok(effective, allowed):
         entry["decision"] = "allow"
         if not model:
@@ -147,7 +175,8 @@ def check_agent(data, entry):
 
 
 RETRO = re.compile(r"(>>?|mkdir\s+(-\S+\s+)*)\s*[\"']?\$\{?AGENTIC_RETRO_NOTES\}?[^\s;&|]*[\"']?")
-HEREDOC = re.compile(r"(<<-?[ \t]*(['\"]?)(\w+)\2[^\n]*)\n.*?\n[ \t]*\3[ \t]*(?:\n|$)", re.S)
+HEREDOC = re.compile(r"(?P<head>[^\n]*?<<-?[ \t]*(['\"]?)(\w+)\2[^\n]*)\n(?P<body>.*?)\n[ \t]*\3[ \t]*(?:\n|$)", re.S)
+SHELL_HEREDOC = re.compile(r"(?:^|[;&|(\n])[ \t]*" + r"(?:sh|bash|zsh|dash)(?:[ \t]+-[^\s<]+)*[ \t]*<<")
 # A quoted string, but the one after sh/bash/zsh -c is a command and is kept.
 QUOTED = re.compile(
     r"(?P<keep>(?:^|[\s;&|(])(?:ba|z)?sh\s+(?:-\S+\s+)*-c\s+)(?P<cmd>\"(?:\\.|[^\"\\])*\"|'[^']*')"
@@ -165,10 +194,11 @@ def _quoted(m):
 
 
 def code_of(cmd):
-    """The command without heredoc bodies, the retro-note skill's own writes
+    """The command without data heredoc bodies, the retro-note skill's own writes
     (into $AGENTIC_RETRO_NOTES, never with ..) and quoted text, which is not a
     command, except the argument of sh -c."""
-    cmd = HEREDOC.sub(lambda m: m.group(1) + "\n", cmd)
+    cmd = HEREDOC.sub(lambda m: m.group("head") + "\n" +
+                      (code_of(m.group("body")) + "\n" if SHELL_HEREDOC.search(m.group("head")) else ""), cmd)
     return QUOTED.sub(_quoted, RETRO.sub(_retro, cmd))
 
 
@@ -189,7 +219,7 @@ def check_bash(data, entry):
 
 def main():
     entry = {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-             "session": None, "cwd": None, "role": None, "model": None, "decision": "error"}
+             "session": None, "cwd": None, "role": None, "model": None, "effort": None, "effort_from": None, "decision": "error"}
     out = None
     try:
         data = json.load(sys.stdin)

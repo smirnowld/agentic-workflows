@@ -59,7 +59,7 @@ One brief for one work item, from `templates/brief.md` in this plugin's reposito
 
 ## Starting work items
 
-- Start each work item with the app's start-session tool: a fresh session, with the brief as its prompt.
+- Start each work item with the app's start-session tool: a fresh session, with the brief as its prompt, and the coordinator route's model and effort from `routing.json`. The start check denies another model or effort.
 - The maintainer's OK of an initiative's plan in chat covers starting that plan's work items. Without that OK, propose the work items and wait.
 - The app starts a session only in a turn that began with the maintainer's own message. In a turn that a coordinator's report or another event began, the start is refused, and a proposal card can't name the repository folder a coordinator runs in. So when a start is refused, don't retry and don't post a card: end the turn by saying which work items are ready to start, and send a notification. The maintainer's next message in this chat lets you start them.
 
@@ -70,7 +70,7 @@ One brief for one work item, from `templates/brief.md` in this plugin's reposito
 
 ## Keeping state
 
-- Update the board and the parent issue as things move: what is in flight, what waits on whom, what is next. A new lead must be able to continue from them alone.
+- Update the board and the parent issue as things move: what is in flight, what waits on whom, what is next. Keep the plan's state in the parent issue's body, edited in place, not in a trail of comments. A new lead must be able to continue from them alone.
 - Never copy status into docs.
 
 ## Keeping things true
@@ -88,7 +88,7 @@ Put each one on the board as an item whose next actor is the maintainer, in this
 - **Recommendation**, and who reviewed it.
 - **Reply line**: the exact words to answer with in this chat.
 
-Run the `today` skill whenever you put a maintainer item on the board, so the page is rebuilt; an urgent item also sends a notification. When the maintainer answers, act, update the board, and let the item leave at the next build.
+Say each one in this chat too, and send a notification for an urgent one; the next morning's Today page lists it. When the maintainer answers, act, update the board, and let the item leave at the next build.
 
 ## Writing
 

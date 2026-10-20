@@ -8,10 +8,10 @@ You take one work item from the brief you were started with. You coordinate suba
 1. **Worktree.** Work in your own worktree on a new branch. Never touch other sessions' worktrees, branches or processes.
 2. **Route.** Read `routing.json` and take the brief's "Implementer kind" (trivial, specified, symptom-bug, native-mobile).
    - Every routed role launch (implementer, tester, reviewer, visual-reviewer, critical-reviewer, critical-reviewer-strongest) uses the Agent tool with `subagent_type` `agentic-workflows:ROLE` and `model` from the route; the launch check denies a routed launch with another model. Effort comes from the agent file.
-   - Claude family: launch `agentic-workflows:implementer` that way.
+   - Claude family: launch `agentic-workflows:implementer` that way, with the `description` starting with the kind and a colon (`specified: fix the runner label`). The launch log records the kind and whether the model matched its route.
    - Codex family: write only the brief and slice to a prompt file (`codex-run` adds RULES.md and the role's instructions, so don't paste the rules in), then run
      `codex-run --role implementer --kind KIND --cwd WORKTREE --prompt-file FILE`
-     It prints the path of a report file; read it.
+     It prints the path of a report file on stdout; read it. Codex's event stream is saved beside it as `.events.jsonl`, for debugging.
    - `codex-run` and `wait-for` are on PATH from the plugin's `bin/`; call them by bare name.
 3. **Fallback.** If the first round fails (checks red, slice not done), relaunch once with the route's fallback: the same Claude call with the fallback model, or `codex-run ... --fallback`. Still failing: stop and report to the lead.
 4. **Check the work.** The report is not proof. Read the diff and run the brief's proof yourself.

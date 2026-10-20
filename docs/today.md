@@ -4,9 +4,7 @@ The maintainer's feed and inbox in one: a private page at a fixed address that s
 
 ## When it's built
 
-- At 8:30 on weekdays, by a scheduled job running the `today` skill.
-- Whenever something new needs the maintainer: the lead runs the skill when it puts an item on the board. An urgent item also sends a push notification with the page's link. Nothing else pushes.
-- On weekends only when something needs the maintainer.
+Once each weekday, at 8:30, by a scheduled job running the `today` skill. The page is that morning's snapshot, the state the lead bases its day on, and it isn't rebuilt during the day. What comes up later is said in the lead's chat, where the maintainer talks to the track, and is on the board, so the next morning's page lists it. An urgent item also sends a push notification. Nothing else pushes.
 
 The page covers everything since it was last built, so a missed day loses nothing. Each build records its time on the page, and the next build reads it from there.
 

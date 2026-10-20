@@ -98,6 +98,23 @@ case $out in *"put the new request on the board"*"**Priority:** fire"*) ;; *) ba
 setup 2 1 1
 expect "exactly cap" deny deny "$(start x)"
 
+# Coordinator routing is checked before the cap and fire; omitted values inherit.
+setup 3 0 0
+routed() { python3 -c 'import json,sys; print(json.dumps({"tool_name":sys.argv[1],"tool_input":dict(prompt="Priority: fire", **json.loads(sys.argv[2]))}))' "$1" "$2"; }
+for tool in "$T" mcp__ccd_session__spawn_task; do
+  for fields in '{"model":"opus","effort":"medium"}' '{"model":"opus","effort":"Medium"}' '{"model":"claude-opus-5-5","effort":"medium"}' '{"model":"opus"}' '{"effort":"medium"}' '{}'; do
+    expect "route allows $fields" fire none "$(routed "$tool" "$fields")"
+    python3 -c 'import json,sys; e=json.loads(open(sys.argv[1]).readlines()[-1]); ti=json.loads(sys.argv[2]); assert all(e[k]==ti.get(k) and e[k+"_from"]==("input" if k in ti else "inherited") for k in ("model","effort"))' "$log" "$fields" || bad "route log fields"
+  done
+  for fields in '{"model":"sonnet","effort":"medium"}' '{"model":"opus","effort":"high"}' '{"model":"notopus"}' '{"effort":"low"}'; do
+    expect "route denies even fire $fields" deny deny "$(routed "$tool" "$fields")"
+    grep -q 'opus with effort medium' "$log" || bad "route refusal lacks model and effort"
+    [ ! -e "$tmp/argv" ] || bad "route check queried waiting items"
+  done
+done
+rm "$AGENTIC_CONFIG"
+expect "no config ignores route" not-configured none "$(routed "$T" '{"model":"sonnet","effort":"high"}')"
+
 # What counts.
 setup 1 0 0
 blockers 1 3 CLOSED > "$tmp/issues"

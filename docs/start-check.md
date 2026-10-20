@@ -1,6 +1,6 @@
 # Start check
 
-A lead can't start new work while too many items wait on the maintainer. The hook [hooks/start-check.py](../hooks/start-check.py) runs before the app's start-session tools (`mcp__ccd_session__start_session` and the older `mcp__ccd_session__spawn_task`) and counts what waits.
+A lead can't start new work while too many items wait on the maintainer. The hook [hooks/start-check.py](../hooks/start-check.py) runs before the app's start-session tools (`mcp__ccd_session__start_session` and the older `mcp__ccd_session__spawn_task`) and counts what waits. In a track with a start-check config, it first checks the coordinator route in [routing.json](../routing.json): a supplied model must match the route’s alias or a model ID containing it as a word, and a supplied effort must match the route. A mismatch is denied with the required model and effort, including for a fire. Omitted values inherit from the starter and pass the route check.
 
 ## What it counts
 
@@ -15,10 +15,12 @@ The hook asks GitHub's GraphQL API through `gh`, which needs the `project` scope
 
 - Under the cap: the start goes ahead.
 - At or over the cap: the start is denied. The cap blocks when the count is at or above it.
-- A start whose brief header has the line `**Priority:** fire` always goes ahead. The header is the part of the prompt before its first `## ` heading (the whole prompt if it has none); a fire line under a later heading doesn't count. The value must be exactly `fire`, so a template placeholder such as `P1 | P2 | fire` doesn't pass; an HTML comment may follow it. Also accepted: `**Priority: fire**`, `Priority: fire`, a leading `- `, `* ` or `> `, Windows line endings, and any case.
+- A start whose brief header has the line `**Priority:** fire` goes ahead after the coordinator route check. The header is the part of the prompt before its first `## ` heading (the whole prompt if it has none); a fire line under a later heading doesn't count. The value must be exactly `fire`, so a template placeholder such as `P1 | P2 | fire` doesn't pass; an HTML comment may follow it. Also accepted: `**Priority: fire**`, `Priority: fire`, a leading `- `, `* ` or `> `, Windows line endings, and any case.
 - No config (a session outside a track), a bad config, or `gh` failing or timing out: the start goes ahead, like the launch check, so a broken check never blocks a fire.
 
-Each decision (`allow`, `deny`, `fire`, `not-configured`, `rules-late`, `error`) is one line in the launch log, `launch-log.jsonl` in `${AGENTIC_LOG_DIR:-$HOME/.claude/agentic-workflows}`, with the count and cap when they were read.
+Each decision (`allow`, `deny`, `fire`, `not-configured`, `rules-late`, `error`) is one line in the launch log, `launch-log.jsonl` in `${AGENTIC_LOG_DIR:-$HOME/.claude/agentic-workflows}`, with the count and cap when they were read. Each start line records `model` and `effort` (null when omitted), and `model_from` and `effort_from` as `input` or `inherited`.
+
+Agent launch lines record `effort` from the tool input or agent file, with `effort_from` as `input`, `agent file` or null. Implementer lines record `kind` from a leading kind and colon in the Agent description, or null; a supplied kind also records `route_ok`, whether the model matches its primary or fallback Claude route. This field does not change the launch decision. Codex `finished` lines record `input_tokens`, `cached_input_tokens` and `output_tokens` from completed-turn usage events, or null when unreadable.
 
 The start check logs its own decision before the app acts. After the app acts, [hooks/start-result.py](../hooks/start-result.py) logs a `start-result` line with `result` set to `started`, `proposed`, `refused`, `unknown` or `error`, the started session ID when present, and the first 200 characters of a refusal. Count real starts from those `start-result` lines whose `result` is `started`. Calls rejected before execution do not fire the result hook. Hook errors log `result: error` with the error text; if the log cannot be written, the hook prints a one-line note to stderr. It always exits successfully and makes no permission decision.
 

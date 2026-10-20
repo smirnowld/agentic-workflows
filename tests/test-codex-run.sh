@@ -12,6 +12,7 @@ printf '%s\n' "\$@" > "$tmp/argv"
 cat > "$tmp/stdin"
 # find the -o file and write a final message there
 while [ \$# -gt 0 ]; do [ "\$1" = -o ] && echo "final message" > "\$2"; shift; done
+[ -n "\${FAKE_CODEX_EVENTS:-}" ] && cat "\$FAKE_CODEX_EVENTS"
 exit \${FAKE_CODEX_EXIT:-0}
 FAKE
 chmod +x "$tmp/bin/codex"
@@ -23,7 +24,7 @@ argv() { tr '\n' ' ' < "$tmp/argv"; }
 
 report=$("$tool" --role implementer --kind specified --cwd "$tmp/work" --prompt-file "$tmp/prompt" 2>/dev/null) || bad "specified primary failed"
 echo "specified primary: $(argv)"
-[ "$(argv)" = "exec -C $tmp/work -m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -s workspace-write -o $report - " ] || bad "unexpected argv for specified primary"
+[ "$(argv)" = "exec --json -C $tmp/work -m gpt-6.1-sol -c model_reasoning_effort=\"medium\" -s workspace-write -o $report - " ] || bad "unexpected argv for specified primary"
 [ "$(cat "$report")" = "final message" ] || bad "report file lacks the final message"
 # The prompt codex receives: RULES.md, then the role body, then the brief.
 body=$(awk 'f>=2{print} /^---$/{f++}' "$root/agents/implementer.md" | sed '1{/^$/d;}')
@@ -77,6 +78,22 @@ cp "$root/RULES.md" "$tmp/plug/RULES.md"; ln -s "$tmp/plug/bin/codex-run" "$tmp/
 # Codex failing passes its exit code through and still prints the report path.
 out=$(FAKE_CODEX_EXIT=3 "$tool" --role implementer --kind specified --cwd "$tmp/work" --prompt-file "$tmp/prompt" 2>/dev/null); rc=$?
 [ "$rc" = 3 ] && [ -f "$out" ] || bad "exit passthrough: rc=$rc out=$out"
+
+# Usage events are summed; the event stream goes to a file beside the report, not to stderr, and the report stays plain text.
+cat > "$tmp/events" <<'EVENTS'
+{"type":"turn.completed","usage":{"input_tokens":12,"cached_input_tokens":4,"output_tokens":3}}
+{"type":"turn.completed","usage":{"input_tokens":7,"cached_input_tokens":2,"output_tokens":5}}
+EVENTS
+out=$(FAKE_CODEX_EVENTS="$tmp/events" "$tool" --role implementer --kind specified --cwd "$tmp/work" --prompt-file "$tmp/prompt" 2>"$tmp/events-out") || bad "usage run failed"
+cmp "$tmp/events" "${out%.md}.events.jsonl" || bad "event stream not saved unchanged"
+[ ! -s "$tmp/events-out" ] || bad "event stream leaked to stderr"
+[ "$(cat "$out")" = "final message" ] || bad "usage altered report"
+python3 -c 'import json,sys; e=json.loads(open(sys.argv[1]).readlines()[-1]); assert [e[k] for k in ("input_tokens","cached_input_tokens","output_tokens")]==[19,6,8]' "$tmp/log/launch-log.jsonl" || bad "usage totals"
+printf '%s\n' 'not json' '{"type":"turn.completed","usage":{"input_tokens":"bad","cached_input_tokens":true}}' > "$tmp/events"
+FAKE_CODEX_EVENTS="$tmp/events" "$tool" --role implementer --kind specified --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1 || bad "malformed usage changed exit"
+python3 -c 'import json,sys; e=json.loads(open(sys.argv[1]).readlines()[-1]); assert all(e[k] is None for k in ("input_tokens","cached_input_tokens","output_tokens"))' "$tmp/log/launch-log.jsonl" || bad "unreadable usage must be null"
+"$tool" --role implementer --kind specified --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1
+python3 -c 'import json,sys; e=json.loads(open(sys.argv[1]).readlines()[-1]); assert all(e[k] is None for k in ("input_tokens","cached_input_tokens","output_tokens"))' "$tmp/log/launch-log.jsonl" || bad "missing usage must be null"
 
 # A codex killed by a signal exits 128+n and the log says the same.
 cat > "$tmp/bin/codex" <<'FAKE'

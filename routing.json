@@ -5,6 +5,7 @@
     "codex": { "runner": "bin/codex-run" }
   },
   "roles": {
+    "coordinator": { "family": "claude", "model": "opus", "effort": "medium" },
     "lead": { "family": "claude", "model": "opus", "effort": "medium" },
     "explorer": { "family": "claude", "model": "sonnet", "effort": "low" },
     "tester": { "family": "claude", "model": "sonnet", "effort": "low" },

@@ -93,6 +93,62 @@ EOF' 'git tag' 'git tag -l' 'git tag --list "v*"' 'git stash list' 'git stash sh
   bash_json "$tmp/track" "$c" >/dev/null
   [ ! -s "$log" ] || bad "'$c' wrongly logged as a lead write"
 done
+# Read destinations and listing options do not count; mutation flags still do.
+for c in 'echo x > /dev/stdout' 'echo x >> /dev/null' 'echo x >> /dev/stdout' 'echo x 2>> /dev/tty' 'echo x >> /dev/fd/2' 'echo x >> /dev/stderr' 'echo x 2> /dev/tty' 'echo x > /dev/fd/12' 'git tag -n' 'git tag -n20' 'git tag --list v*' 'git tag -l v*' 'git tag --contains HEAD' 'git tag --points-at HEAD' 'git tag --contains=HEAD' 'git tag --points-at=HEAD' 'git tag --sort=-creatordate' 'git tag --sort -v:refname -l' 'git tag --format=%(refname)' 'git tag --merged main' 'git tag --no-contains HEAD' 'python3 - <<EOF
+print("touch f")
+EOF' 'cat sh <<EOF
+touch f
+EOF' "sh <<'SCRIPT'
+cat <<'DATA'
+touch f
+DATA
+SCRIPT"; do
+  : > "$log"
+  bash_json "$tmp/track" "$c" >/dev/null
+  [ ! -s "$log" ] || bad "'$c' wrongly logged as a lead write"
+done
+for c in 'echo x > /dev/stdout.txt' 'echo x > /dev/fd/1x' 'git tag -d v1' 'git tag -f v1' 'git tag --sort=refname v9' 'git tag --format=x v8' 'git tag -i v7' 'git tag -l -d v1' 'true;git tag -l -d v1' 'sh <<EOF
+touch f
+EOF' "bash <<'EOF'
+rm f
+EOF" 'zsh -s <<EOF
+echo x > f
+EOF' 'dash <<EOF
+git tag v1
+EOF'; do
+  : > "$log"
+  bash_json "$tmp/track" "$c" >/dev/null
+  grep -q '"decision": "lead-write"' "$log" || bad "'$c' not logged as a lead write"
+done
+# Agent effort precedence, missing values, kind parsing and per-kind route logging.
+python3 - "$hook" "$log" <<'PYTEST' || bad "Agent metadata"
+import json, subprocess, sys
+hook, log = sys.argv[1:]
+def launch(**ti):
+    subprocess.run([sys.executable, hook], input=json.dumps({"tool_name":"Agent", "tool_input":ti}), text=True, capture_output=True, check=True)
+    return json.loads(open(log).readlines()[-1])
+e = launch(subagent_type="agentic-workflows:implementer", model="sonnet", effort="high")
+assert (e["effort"], e["effort_from"], e["kind"]) == ("high", "input", None)
+e = launch(subagent_type="agentic-workflows:implementer")
+assert (e["effort"], e["effort_from"]) == ("medium", "agent file")
+for st in ("Explore", "agentic-workflows:nope"):
+    e = launch(subagent_type=st)
+    assert e["effort"] is None and e["effort_from"] is None
+e = launch(subagent_type="Explore", effort="low")
+assert (e["effort"], e["effort_from"]) == ("low", "input")
+for kind in ("trivial", "specified", "symptom-bug", "native-mobile"):
+    for model in ("sonnet", "opus", "gpt-6.1-sol"):
+        e = launch(subagent_type="agentic-workflows:implementer", model=model, description="  " + kind.upper() + " : do work")
+        assert e["kind"] == kind
+        assert e["route_ok"] == (model == "sonnet" or (model == "opus" and kind in ("symptom-bug", "native-mobile")))
+        assert e["decision"] == ("deny" if model == "gpt-6.1-sol" else "allow")
+e = launch(subagent_type="agentic-workflows:implementer", description="specified: do work")
+assert e["route_ok"] is True
+for description in ("do specified: work", "unknown: work", ""):
+    e = launch(subagent_type="agentic-workflows:implementer", description=description)
+    assert e["kind"] is None and "route_ok" not in e and e["decision"] == "allow"
+PYTEST
+
 # The command text never reaches the log.
 : > "$log"
 bash_in "$tmp/track" "echo SECRETWORD > f" >/dev/null
