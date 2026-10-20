@@ -6,6 +6,7 @@
 **Repository and base:** OWNER/REPO, from main
 **Risk:** low | normal | critical | critical, a revert can't undo it: WHAT A MISTAKE WOULD DO  <!-- the last option means the strongest critical reviewer: a revert can't undo the harm and it reaches production data, backups, secrets or credentials, money, or real people's data -->
 **Priority:** P1 | P2 | P3 | fire: THE BOARD ITEM'S PRIORITY, or fire  <!-- "fire" is only a brief value, never a board priority; it lets the work start while the cap or more items wait on the maintainer -->
+**Lead session:** SESSION ID  <!-- the lead's own session id, for the coordinator's SendMessage -->
 **Implementer kind:** trivial | specified | symptom-bug | native-mobile  <!-- the route's key in routing.json -->
 
 ## Goal

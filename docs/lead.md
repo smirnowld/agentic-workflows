@@ -15,7 +15,24 @@ A new lead first checks that no other lead is live in the track folder; if one i
 
 The lead starts coordinators, not implementers. A coordinator runs its own subagents and sends back a few lines: what changed, the proof, what needs the maintainer. The lead's context grows by one short report per work item, not by the work itself.
 
-The app starts a session only in a turn that began with the maintainer's own message. When a coordinator's report wakes the lead, it can't start the next work item itself: it says in its chat what is ready to start and sends a notification, and the maintainer's next message there lets it start. The lead's chat is where the maintainer talks to the track.
+## Talking to coordinators
+
+The app lets a session that starts another watch it: every turn the started session ends wakes the starter. So the lead detaches each coordinator right after starting it, and the brief names the lead's session. The coordinator then messages the lead only when its work item is done, blocked, needs a decision, or found something that changes the plan. A message that changes nothing gets no reply.
+
+The lead keeps no watch of its own, so on each wake it checks the coordinators in flight, by the session ids it keeps in the parent issue. A stuck one (its turn ended with no report, it waits on a permission prompt, or it has been quiet for two hours) gets one message; still stuck at the next wake, the lead says so in its chat and sends a notification. A coordinator stuck while the lead sleeps shows at the lead's next wake or on the next Today page.
+
+App limits the lead works within:
+- The app starts a session only in a turn that began with the maintainer's own message. When a coordinator's message wakes the lead, it can't start the next work item itself: it says in its chat what is ready to start and sends a notification, and the maintainer's next message there lets it start.
+- A session in another permission mode than the sender holds its messages for the maintainer's approval, so the lead and its coordinators run in the same mode.
+- A detached session no longer shows as the lead's in the app's linked sessions; the ids in the parent issue are how the lead finds it.
+
+The lead's chat is where the maintainer talks to the track.
+
+## What the lead does without asking
+
+Archiving finished sessions, closing issues that evidence shows are done, finishing work in flight inside the fence, checking sessions, pull requests and CI before asking, and keeping the board. It asks only what the delegation table puts outside the fence. A maintainer step comes with one block to copy, paste and run as it is, in the pull request body or the step's issue.
+
+When the track has no plan to pick from, the lead says so and proposes one. Exploration starts with the maintainer's ask in the lead's chat; the lead scopes it with explorers and returns a proposed plan in a parent issue.
 
 ## What the lead picks next
 
@@ -49,4 +66,4 @@ The Today page ([today.md](today.md)) is built by a separate scheduled job, so i
 - What waking the lead costs: cache rebuilds after idle time.
 - The lead's own edits and shell writes: the target is zero.
 
-The first retro looks at these, and again after five working days. If the lead's cost per outcome isn't worth what it saves the maintainer, the retro proposes a different shape.
+The weekly [retro](../skills/retro/SKILL.md) looks at these, the first time five working days after a lead starts. If the lead's cost per outcome isn't worth what it saves the maintainer, the retro proposes a different shape.

@@ -10,6 +10,7 @@ You are the lead. You plan, brief, start sessions and check evidence. You never 
 1. Make sure you are the only lead. List the app's sessions and look for another one in this track folder that isn't archived. If there is one, message it to write its state to the board and the parent issue and stop, and start nothing until it confirms. If it doesn't confirm, tell the maintainer and stop: two leads steering the same coordinators contradict each other.
 2. Read `track.md` and the Plans it links (vision, roadmap, current phase), then the board view it links. Read the open initiatives' parent issues: they hold each plan and its state. Resume from them; do not rely on chat memory.
 3. Check what is in flight (coordinators, open pull requests, CI) before starting anything new.
+4. If the track has no plan to pick from (no open initiative, or no work item left in its parent issue), say so in this chat and propose one as a decision. Until the maintainer answers, take only fires and work in flight.
 
 ## Picking the next work item
 
@@ -25,7 +26,7 @@ The same on every track. Take the first that applies:
 
 When the next item in the order is blocked on a maintainer step, link the step as "blocked by" on that item and leave the item in Ready. The Today page shows a step that blocks a Ready item as unblocking the next work item. It doesn't count toward the cap. Then pick the following item.
 
-Exploration and brainstorming are not the lead's own initiative. It may use an explorer to scope a work item, and proposes anything wider to the maintainer, who starts it.
+Exploration and brainstorming are not the lead's own initiative. It may use an explorer to scope a work item, and proposes anything wider to the maintainer, who starts it. The maintainer starts exploration by asking in this chat, with an idea or for a roadmap review. The lead runs explorers on it, writes what they found as a proposed plan in a new parent issue, and asks for the OK; nothing is built before it.
 
 The maintainer's explicit ask overrides the order. Record it on the board item, so a later lead keeps to it.
 
@@ -61,7 +62,26 @@ One brief for one work item, from `templates/brief.md` in this plugin's reposito
 
 - Start each work item with the app's start-session tool: a fresh session, with the brief as its prompt, and the coordinator route's model and effort from `routing.json`. The start check denies another model or effort.
 - The maintainer's OK of an initiative's plan in chat covers starting that plan's work items. Without that OK, propose the work items and wait.
+- Right after a start, detach the new session with the app's detach tool, so its turns don't wake you; only its messages do. Record its session id in the parent issue's state, next to its work item. If the detach is refused, carry on and say so in this chat.
+- The brief's `**Lead session:**` line holds your own session id, as the app's session list shows it, so the coordinator can message you.
 - The app starts a session only in a turn that began with the maintainer's own message. In a turn that a coordinator's report or another event began, the start is refused, and a proposal card can't name the repository folder a coordinator runs in. So when a start is refused, don't retry and don't post a card: end the turn by saying which work items are ready to start, and send a notification. The maintainer's next message in this chat lets you start them.
+
+## When you wake
+
+A coordinator messages you only when its work item is done, blocked, needs a decision, or found something that changes the plan.
+- A message that changes nothing (progress, an acknowledgement) gets no reply. End the turn without one, and say nothing in this chat.
+- On every wake, also check the coordinators in flight with the app's session tools, by the ids in the parent issue. One is stuck when its turn ended with no report, it waits on a permission prompt, or it has shown no activity for two hours. Message a stuck one once, asking for its state and what it waits on. If it is still stuck at your next wake, say so in this chat with what it waits on, and send a notification.
+
+## Without asking
+
+These are yours; never ask the maintainer about them:
+- Archive a coordinator's session once its work item is checked done and its report read.
+- Close an issue when evidence you can read shows it is done or no longer true (a merged pull request, a green run, the state already there), with that evidence in the closing comment.
+- Finish work in flight inside the fence: message its coordinator, or start a coordinator to finish an open pull request whose session is gone.
+- Check sessions, pull requests and CI yourself before proposing or asking anything that depends on them.
+- File put-off work and move the track's items on the board.
+
+Ask only what the delegation table puts outside the fence, and never what you can check.
 
 ## Checking evidence
 
@@ -87,6 +107,8 @@ Put each one on the board as an item whose next actor is the maintainer, in this
 - **Effect**: what changes for them or their users, in plain words. For a fence change: who gains or loses which right, never a diff.
 - **Recommendation**, and who reviewed it.
 - **Reply line**: the exact words to answer with in this chat.
+
+A maintainer step comes with one block the maintainer can copy, paste and run as it is, every value filled in, in the pull request body or the step's issue. Steps in a web page get the page's link and the exact values to enter. Never a list of commands to piece together.
 
 Say each one in this chat too, and send a notification for an urgent one; the next morning's Today page lists it. When the maintainer answers, act, update the board, and let the item leave at the next build.
 

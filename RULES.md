@@ -54,5 +54,5 @@ Three words recur. A **track** is one area of work, split by purpose rather than
 
 ## Learning
 
-- When something goes wrong, the maintainer records it with `retro-note`. Don't change the process yourself: the retro reads those notes and proposes changes.
+- When something goes wrong, the maintainer records it with `retro-note`. Don't change the process yourself: the weekly retro (the `retro` skill), which the maintainer joins, reads those notes and proposes changes.
 - Each retro also reads the current `board-drift` report, finds what caused each finding, and proposes a change to the setup. A cause found at more than one retro means the setup has a gap, not that someone forgot.
