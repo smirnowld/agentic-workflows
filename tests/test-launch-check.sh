@@ -13,7 +13,15 @@ bad() { echo "FAIL: $*"; fail=1; }
 mkdir "$tmp/track" "$tmp/plain" "$tmp/log"
 echo "# track" > "$tmp/track/track.md"; echo "lead" > "$tmp/track/CLAUDE.md"
 
-agent() { printf '{"session_id":"s1","cwd":"/w","tool_name":"Agent","tool_input":{"subagent_type":"%s"%s}}' "$1" "${2:+,\"model\":\"$2\"}" | python3 "$hook"; }
+agent() {
+  effort=medium
+  case "$1" in
+    *critical-reviewer-strongest) effort=xhigh ;;
+    *critical-reviewer) effort=high ;;
+    *explorer) effort=low ;;
+  esac
+  printf '{"session_id":"s1","cwd":"/w","tool_name":"Agent","tool_input":{"subagent_type":"%s","effort":"%s"%s}}' "$1" "$effort" "${2:+,\"model\":\"$2\"}" | python3 "$hook"
+}
 bash_in() { printf '{"session_id":"s1","cwd":"%s","tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" "$2" | python3 "$hook"; }
 # bash_json CWD CMD: like bash_in, but the command may contain quotes.
 bash_json() { python3 -c 'import json,sys; print(json.dumps({"session_id":"s1","cwd":sys.argv[1],"tool_name":"Bash","tool_input":{"command":sys.argv[2]}}))' "$1" "$2" | python3 "$hook"; }
@@ -107,7 +115,7 @@ SCRIPT"; do
   bash_json "$tmp/track" "$c" >/dev/null
   [ ! -s "$log" ] || bad "'$c' wrongly logged as a lead write"
 done
-for c in 'echo x > /dev/stdout.txt' 'echo x > /dev/fd/1x' 'git tag -d v1' 'git tag -f v1' 'git tag --sort=refname v9' 'git tag --format=x v8' 'git tag -i v7' 'git tag -l -d v1' 'true;git tag -l -d v1' 'sh <<EOF
+for c in "sed -i 'w public' /tmp/claude-session/input" 'sed -i -f public-script /tmp/claude-session/input' 'cp -t public /tmp/claude-session/source' 'cp --target-directory=public /tmp/claude-session/source' 'echo x > /dev/stdout.txt' 'echo x > /dev/fd/1x' 'git tag -d v1' 'git tag -f v1' 'git tag --sort=refname v9' 'git tag --format=x v8' 'git tag -i v7' 'git tag -l -d v1' 'true;git tag -l -d v1' 'sh <<EOF
 touch f
 EOF' "bash <<'EOF'
 rm f
@@ -120,6 +128,25 @@ EOF'; do
   bash_json "$tmp/track" "$c" >/dev/null
   grep -q '"decision": "lead-write"' "$log" || bad "'$c' not logged as a lead write"
 done
+# Scratchpad and retro-note destinations: redirects and utility writes are private.
+export AGENTIC_RETRO_NOTES="$tmp/notes" TMPDIR="$tmp/temp"
+mkdir -p "$AGENTIC_RETRO_NOTES" "$TMPDIR"
+for target in "$tmp/notes/n.md" '/private/tmp/claude-session/scratchpad/n.md' "$TMPDIR/claude-session/scratchpad/n.md"; do
+  for c in "echo x > '$target'" "echo x >> $target" "tee '$target'" "touch '$target'" "mkdir -p '$target'" "cp input '$target'" "cp -t '$target' input" "sed -i s/a/b/ '$target'" "sed -i '' s/a/b/ '$target'" "rm -f '$target'"; do
+    : > "$log"
+    bash_json "$tmp/track" "$c" >/dev/null
+    [ ! -s "$log" ] || bad "private target was counted: $c"
+  done
+  for c in "echo x > '$target/../escape'" "touch '$target/../escape'" "echo x > '$target'; touch outside"; do
+    : > "$log"
+    bash_json "$tmp/track" "$c" >/dev/null
+    grep -q '"decision": "lead-write"' "$log" || bad "outside write was missed: $c"
+  done
+done
+: > "$log"
+bash_json "$tmp/track" "echo x > '$tmp/notes-other/n.md'" >/dev/null
+grep -q '"decision": "lead-write"' "$log" || bad "retro sibling write was missed"
+
 # Agent effort precedence, missing values, kind parsing and per-kind route logging.
 python3 - "$hook" "$log" <<'PYTEST' || bad "Agent metadata"
 import json, subprocess, sys
@@ -130,7 +157,7 @@ def launch(**ti):
 e = launch(subagent_type="agentic-workflows:implementer", model="sonnet", effort="high")
 assert (e["effort"], e["effort_from"], e["kind"]) == ("high", "input", None)
 e = launch(subagent_type="agentic-workflows:implementer")
-assert (e["effort"], e["effort_from"]) == ("medium", "agent file")
+assert e["effort"] is None and e["effort_from"] is None and e["decision"] == "deny"
 for st in ("Explore", "agentic-workflows:nope"):
     e = launch(subagent_type=st)
     assert e["effort"] is None and e["effort_from"] is None
@@ -138,15 +165,20 @@ e = launch(subagent_type="Explore", effort="low")
 assert (e["effort"], e["effort_from"]) == ("low", "input")
 for kind in ("trivial", "specified", "symptom-bug", "native-mobile"):
     for model in ("sonnet", "opus", "gpt-6.1-sol"):
-        e = launch(subagent_type="agentic-workflows:implementer", model=model, description="  " + kind.upper() + " : do work")
+        e = launch(subagent_type="agentic-workflows:implementer", model=model, effort="low" if kind == "trivial" else "medium", description="  " + kind.upper() + " : do work")
         assert e["kind"] == kind
         assert e["route_ok"] == (model == "sonnet" or (model == "opus" and kind in ("symptom-bug", "native-mobile")))
-        assert e["decision"] == ("deny" if model == "gpt-6.1-sol" else "allow")
-e = launch(subagent_type="agentic-workflows:implementer", description="specified: do work")
+        assert e["decision"] == ("allow" if e["route_ok"] else "deny")
+e = launch(subagent_type="agentic-workflows:implementer", effort="medium", description="specified: do work")
 assert e["route_ok"] is True
 for description in ("do specified: work", "unknown: work", ""):
-    e = launch(subagent_type="agentic-workflows:implementer", description=description)
+    e = launch(subagent_type="agentic-workflows:implementer", effort="medium", description=description)
     assert e["kind"] is None and "route_ok" not in e and e["decision"] == "allow"
+e = launch(subagent_type="agentic-workflows:reviewer", model="sonnet", effort="medium")
+assert e["decision"] == "allow"
+for effort in (None, "low", "high"):
+    e = launch(subagent_type="agentic-workflows:reviewer", model="sonnet", effort=effort)
+    assert e["decision"] == "deny" and "Set effort to medium" in e["reason"]
 PYTEST
 
 # The command text never reaches the log.

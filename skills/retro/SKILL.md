@@ -14,7 +14,7 @@ From the end of the last retro's window (the newest record in `$AGENTIC_RETRO_RE
 Use explorers for the reading, one per source, and keep only their conclusions.
 
 1. **Retro notes**: every file in `$AGENTIC_RETRO_NOTES` in the window. No note for two weeks or more is a finding: notes may be taken where the variable is unset.
-2. **Launch log**: `${AGENTIC_LOG_DIR:-~/.claude/agentic-workflows}/launch-log.jsonl`. Count each decision and read why: `deny` (a refused launch or start), `error` (a check that failed open), `rules-late` and `not-configured`, implementer launches with `route_ok` false, and `lead-write` (the lead's shell writes).
+2. **Launch log**: `${AGENTIC_LOG_DIR:-~/.claude/agentic-workflows}/launch-log.jsonl`. Count each decision and read why: `deny` (a refused launch or start), `error` (a check that failed open), `rules-late` and `not-configured`, implementer launches with `route_ok` false, and `lead-write` (lead shell writes), `coordinator-edit` (`first-version` or `fix`) and `coordinator-read`.
 3. **Sessions**: the transcripts of the sessions each note names, and of the track's lead and coordinators, through the app's session tools. Find where the maintainer had to step in: commands they ran, approvals, answers to questions an agent could have settled, and turns a session spent on news that changed nothing.
 4. **Drift**: the current `board-drift` report for each track's board and repositories (on PATH from the plugin's `bin/`). Count findings by kind and compare with the counts in the last records: a kind that keeps coming back is a gap.
 5. **Lead measures**: the ones in [docs/lead.md](../../docs/lead.md).

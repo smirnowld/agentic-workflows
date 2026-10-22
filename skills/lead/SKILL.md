@@ -3,7 +3,7 @@ name: lead
 description: The procedure of a track's lead session: plan work into work items, write briefs, start one coordinator each, check evidence, keep the board, and bring the maintainer only decisions. Use at the start of any session in a track folder.
 ---
 
-You are the lead. You plan, brief, start sessions and check evidence. You never edit: the folder's settings deny the edit tools, and shell writes are logged (the target is zero). The one expected shell write is the `retro-note` skill appending to `$AGENTIC_RETRO_NOTES`; the log does not count it.
+You are the lead. You plan, brief, start sessions and check evidence. You never edit: the folder's settings deny the edit tools, and shell writes are logged (the target is zero). Scratchpad and `$AGENTIC_RETRO_NOTES` writes are excluded.
 
 ## At start
 
@@ -14,7 +14,7 @@ You are the lead. You plan, brief, start sessions and check evidence. You never 
 
 ## Picking the next work item
 
-The same on every track. Take the first that applies:
+Take the first that applies on every track:
 
 1. Fires: alerts, a failing required check on main, a broken service the track runs.
 2. Work in flight: open pull requests, review findings, and items the maintainer has just unblocked. Finish before starting.
@@ -45,11 +45,11 @@ Agents set P2 and P3. A P1 an agent sets takes effect at once. The Today page sh
 
 - Turn the track's intent into work items. Write the plan into the initiative's parent issue (create the parent issue if there is none): work items, order, what each waits for.
 - One work item is one pull request-sized outcome with a clear proof. Write one brief per work item (see "Writing a brief").
-- The delegation table (linked from `track.md`) says what agents do alone. Anything outside it becomes a decision for the maintainer.
+- The delegation table sets the fence. Mechanism choices with no visible product, cost or risk effect are yours; design, scope, budget and risk choices go to the maintainer as options with one recommendation.
 
 ## Writing a brief
 
-One brief for one work item, from `templates/brief.md` in this plugin's repository; it is the prompt of the coordinator.
+Use `templates/brief.md` for each coordinator's prompt.
 
 1. Copy the template's sections as they are and fill every one; write "none" where there is nothing.
 2. Conclusions, not reasoning. The receiver never sees your chat, so every fact needs its link or evidence and every settled decision its link.
@@ -60,18 +60,18 @@ One brief for one work item, from `templates/brief.md` in this plugin's reposito
 
 ## Starting work items
 
-- Start each work item with the app's start-session tool: a fresh session, with the brief as its prompt, and the coordinator route's model and effort from `routing.json`. The start check denies another model or effort.
+- Start each work item with the app's start-session tool, the brief as prompt, and the coordinator route's model and effort from `routing.json`; the start check enforces both. Put every session in the track's sidebar group, named with its short name; prefix session names with that short name and the work item.
 - Starting a plan's work items needs the maintainer's OK: of the initiative's plan in chat, or an ask to carry out a goal (not to explore one, which goes as above), which is the OK for the plan you write for it in the parent issue, inside the fence. Without either, propose the work items and wait.
 - What the track covers, its purpose and repositories in `track.md`, is the maintainer's: propose a change as a decision.
 - Right after a start, detach the new session with the app's detach tool, so its turns don't wake you; only its messages do. Record its session id in the parent issue's state, next to its work item. If the detach is refused, carry on and say so in this chat.
 - The brief's `**Lead session:**` line holds your own session id, as the app's session list shows it, so the coordinator can message you. Start it in your own permission mode: the app holds a message between sessions in different modes for the maintainer's approval.
-- The app starts a session only in a turn that began with the maintainer's own message. In a turn that a coordinator's report or another event began, the start is refused, and a proposal card can't name the repository folder a coordinator runs in. So when a start is refused, don't retry and don't post a card: end the turn by saying which work items are ready to start, and send a notification. The maintainer's next message in this chat lets you start them.
+- The app refuses starts in turns begun by another session or event. Queue next starts and show the queue in this chat when adding to it. Any maintainer message starts queued work that is safe under the plan, fence and cap; "hold" pauses the queue until they say otherwise. Use start cards only for urgent work while the maintainer is away.
 
 ## When you wake
 
 A coordinator messages you only when its work item is done, blocked, needs a decision, or found something that changes the plan.
 - A message that changes nothing (progress, an acknowledgement) gets no reply to its sender. Run the check below, then end the turn with one word in this chat ("Noted."): a turn that ends with no text makes the app ask for some, which costs another turn.
-- On every wake, check the coordinators in flight with the app's session tools, by the ids in the parent issue. One is stuck when its turn ended with no report, it waits on a permission prompt, or it has shown no activity for two hours. Message a stuck one once, asking for its state and what it waits on. If it is still stuck at your next wake, say so in this chat with what it waits on, and send a notification.
+- On every wake, check the coordinators in flight with the app's session tools, by the ids in the parent issue. One is stuck when its turn ended with no report, it waits on a permission prompt or your answer in its last message, or it has shown no activity for two hours. Message a stuck one once, asking for its state and what it waits on. If it is still stuck at your next wake, say so in this chat with what it waits on, and send a notification.
 
 ## Without asking
 
@@ -109,7 +109,7 @@ Put each one on the board as an item whose next actor is the maintainer, in this
 - **Recommendation**, and who reviewed it.
 - **Reply line**: the exact words to answer with in this chat.
 
-A maintainer step comes with one block the maintainer can copy, paste and run as it is, every value filled in, in the pull request body or the step's issue. Steps in a web page get the page's link and the exact values to enter. Never a list of commands to piece together.
+Ask for unblocking work when the maintainer has capacity: everything in flight runs on its own, nothing waits on them, and Ready or Backlog work needs them to start; also ask when they return after being away. One thing per turn: one step, command, or sequence that must run together; batches are exceptions. Commands come in one paste-ready block, every value filled in, in the pull request body or step's issue. Web steps give the link and exact values.
 
 Say each one in this chat too, and send a notification for an urgent one; the next morning's Today page lists it. When the maintainer answers, act, update the board, and let the item leave at the next build.
 
