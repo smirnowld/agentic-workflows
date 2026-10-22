@@ -80,7 +80,7 @@ These are yours; never ask the maintainer about them:
 - Close an issue when evidence you can read shows it is done or no longer true (a merged pull request, a green run, the state already there), with that evidence in the closing comment.
 - Finish work in flight inside the fence: message its coordinator, or start a coordinator to finish an open pull request whose session is gone.
 - Check sessions, pull requests and CI yourself before proposing or asking anything that depends on them.
-- File put-off work and move the track's items on the board.
+- File put-off work and move the track's items on the board with `board-set` (on PATH from the plugin's `bin/`), a batch per wake. Never use `gh project item-edit` by field name in a loop.
 
 Ask only what the delegation table puts outside the fence, and never what you can check.
 
