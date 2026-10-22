@@ -85,6 +85,9 @@ grep -q '"count": 2' "$log" || bad "under cap: count not logged"
 
 # The searches: one issue and one pull request search over all repos.
 [ "$(wc -l < "$tmp/argv" | tr -d ' ')" = 2 ] || bad "want two gh calls"
+[ "$(grep -Fc 'search(type: ISSUE, first: 20,' "$tmp/argv")" = 2 ] || bad "search page size"
+grep -Fq 'blocking(first: 20)' "$tmp/argv" || bad "blocked issue limit"
+grep -Fq 'projectItems(first: 5)' "$tmp/argv" || bad "board limit"
 grep -q "q=is:issue assignee:LOGIN is:open archived:false repo:ORG/a repo:ORG/b$" "$tmp/argv" || bad "issue search: $(cat "$tmp/argv")"
 grep -q "q=is:pr review-requested:LOGIN is:open archived:false repo:ORG/a repo:ORG/b$" "$tmp/argv" || bad "pr search"
 

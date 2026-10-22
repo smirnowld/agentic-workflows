@@ -45,7 +45,9 @@ FIRE = re.compile(r"^[ \t]*(?:[-*>][ \t]+)?(?:\*\*)?Priority:(?:\*\*)?[ \t]*(?:\
 STARTED = ["In progress", "In review", "Waiting"]
 REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 SHOWN = 5
-MAX_CAP = 100  # the search limit: a higher cap could never be reached
+PAGE = 20
+MAX_PAGES = 5
+MAX_CAP = PAGE * MAX_PAGES  # the search limit: a higher cap could never be reached
 
 
 def header(prompt):
@@ -110,13 +112,12 @@ def load_config(cwd):
     return cap, who, repos, started
 
 
-ISSUE_FIELDS = ("... on Issue { url blocking(first: 50) { nodes { state "
-                "projectItems(first: 10) { nodes { fieldValueByName(name: \"Status\") "
+ISSUE_FIELDS = ("... on Issue { url blocking(first: 20) { nodes { state "
+                "projectItems(first: 5) { nodes { fieldValueByName(name: \"Status\") "
                 "{ ... on ProjectV2ItemFieldSingleSelectValue { name } } } } } } }")
 PR_FIELDS = "... on PullRequest { url author { __typename login } }"
-QUERY = ("query($q: String!, $after: String) { search(type: ISSUE, first: 100, query: $q, after: $after) "
+QUERY = ("query($q: String!, $after: String) { search(type: ISSUE, first: " + str(PAGE) + ", query: $q, after: $after) "
          "{ pageInfo { hasNextPage endCursor } nodes { %s } } }")
-MAX_PAGES = 5
 
 
 def search(terms, fields, deadline, notes):
