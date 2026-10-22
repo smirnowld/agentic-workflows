@@ -4,7 +4,7 @@
 
 ## Decision
 
-Each track has one product manager (PM) at a time, beside its one lead. The PM works with the maintainer on what to build; the lead delivers what is ready. The PM is the custodian of the roadmap, not its owner: it does the groundwork and keeps the plan clean and visible, and challenges the maintainer's ideas against the vision, the strategy and the plan. It never invents requirements.
+Each track has one product manager (PM) at a time, beside its one lead. The PM works with the maintainer on what to build; the lead delivers what is ready. The PM is the custodian of the roadmap, not its owner: it does the groundwork and keeps the plan clean and visible, and challenges the maintainer's ideas against the vision and strategy of what the track owns (its product's, or the organisation's for the platform) and the plan. It never invents requirements.
 
 ### What each one owns
 
@@ -22,7 +22,7 @@ Each track has one product manager (PM) at a time, beside its one lead. The PM w
 
 ### Where plans live
 
-- The track's board is the only place for anything that moves: one board per track, with a product field. Ideas are items in an **Idea** status, a spec is the item's issue body, and order, priority and phase are board fields. Each phase's purpose and the coherent action it serves are in its parent issue.
+- The track's board is the only place for anything that moves: one board per track, with a field for the part of what it owns (a vertical, a platform part) where there are several. Ideas are items in an **Idea** status, a spec is the item's issue body, and order, priority and phase are board fields. Each phase's purpose and the coherent action it serves are in its parent issue.
 - A product's repository holds code, its vision and strategy, and ADRs. No roadmap, plan or idea files.
 - The PM publishes a roadmap page built from the board (phases, their items, each item's state) and rebuilds it when the board changes.
 - The PM keeps nothing else: no notes files, no auto-memory about the track. Lasting product decisions become ADRs in the product's repository, through a work item.
@@ -54,6 +54,13 @@ The test for a larger call is whether it changes what a phase delivers or when i
 
 Each decision it brings records whether the maintainer followed its recommendation; a class the maintainer always follows is the first candidate to move to the PM at a retro.
 
+### Acceptance
+
+- The lead owns the definition of done: merged with every required check green, the tester's run and the reviews checked.
+- The PM owns whether the right thing was built. The item's acceptance criteria become the brief's proof: the tester reports evidence for each one, and the coordinator doesn't merge until each has it.
+- After the merge, the PM reads that evidence against the intent recorded on the item. A mismatch becomes a linked item, counted at the retro as delivered wrong. The PM neither tests by hand nor holds the merge.
+- The intent check records who accepts the item: the PM or the maintainer. The maintainer accepts only the items marked theirs.
+
 ### Priority switches
 
 Before a switch that touches started work or the current phase, the PM states once what pauses, what is lost, what slips, and whether it serves the strategy. Then the maintainer decides, and the PM stops arguing. The switch and its stated cost go on the item.
@@ -62,7 +69,7 @@ Before a switch that touches started work or the current phase, the PM states on
 
 | Role | Does | Route |
 |---|---|---|
-| PM | the conversation, intent checks, the ready bar, decisions | Claude Opus, high |
+| PM | the conversation, intent checks, the ready bar, decisions, acceptance | Claude Opus, high |
 | explorer | scopes an idea against code, docs, history and the board | as routed |
 | spec critic | reads a spec cold before Ready: gaps, ambiguity, conflicts with the strategy, the phase and other items; never rewrites | Codex, high |
 | strategist | a second opinion on decisions that are the maintainer's: does it serve the strategy, what it costs, the best rival plan | Claude Fable, xhigh |
@@ -80,7 +87,7 @@ A second track's lead starts only when at least five items have reached Ready th
 - Two chats per track cost the maintainer some context switching; an ask in the wrong chat waits until the other is open.
 - RULES.md's line that only the lead moves work between Ready, In progress, In review and Waiting changes: the PM moves items into Ready, the lead from Ready on.
 - The organisation's strategy says the maintainer's work on a track goes through its PM; with two chats, that holds for what to build. The change is proposed to the maintainer where the strategy lives.
-- A product's own board and roadmap file move into its track's board as the PM's first work.
+- A board or roadmap file kept outside the track's board moves into it as the PM's first work.
 
 ## Context
 
@@ -90,4 +97,6 @@ Work reached agents underspecified: either it blocked on questions, or it was de
 
 - **The lead does it**: rejected. Its context fills with delivery, and it can't challenge the plan it is executing.
 - **The PM as the one front door, starting coordinators itself**: rejected. It would be a second lead, and the app starts sessions only in a turn the maintainer began.
+- **A QA role**: rejected. It would repeat the tester and the reviewers, and it tests against the spec, when the spec or the intent behind it is what tends to be wrong.
+- **The PM accepting before the merge**: rejected. Every item would wait on the PM.
 - **Plans in repository files, mirrored on the board**: rejected. They drift, and a spec tweak becomes a pull request.
