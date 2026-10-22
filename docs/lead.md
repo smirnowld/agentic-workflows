@@ -34,6 +34,10 @@ Archiving finished sessions, closing issues that evidence shows are done, finish
 
 When the track has no plan to pick from, the lead says so and proposes one. Exploration starts with the maintainer's ask in the lead's chat; the lead scopes it with explorers and returns a proposed plan in a parent issue.
 
+## Keeping the board
+
+The lead moves board items with `board-set`, a batch per wake. It never runs `gh project item-edit` by field name in a loop: each call reads every project field again. It reads `gh project field-list` and `gh project item-list` once per session and reuses what they return.
+
 ## What the lead picks next
 
 The [lead skill](../skills/lead/SKILL.md) sets the order, the same on every track: fires, work in flight, P1 items, the current phase's next work package (with related P2 and P3 items), other P2 items, upkeep, then scoping the next phase. The maintainer's explicit ask overrides it. While the cap or more items wait on the maintainer, only fires start. The count covers the track's own repositories, and the cap is set in the track's start-check config ([start check](start-check.md)); a session outside a track isn't capped. Only a step that holds up started work counts as a wait. A step that blocks only unstarted work doesn't count; when it blocks the next item, the lead links it, the Today page shows it as the next step to take, and the lead picks the following item. Docs change with the work, and drift becomes an upkeep work item the lead starts itself; changes to plan or roadmap content are proposed to the maintainer as decisions.
