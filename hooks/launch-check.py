@@ -23,6 +23,7 @@ Hook input and output: https://code.claude.com/docs/en/hooks (PreToolUse input
 carries session_id, cwd, tool_name, tool_input; a deny prints
 hookSpecificOutput.permissionDecision "deny" with permissionDecisionReason).
 """
+import fcntl
 import json
 import os
 import re
@@ -312,11 +313,18 @@ def session_path(data):
 def save_session(data, state):
     path = session_path(data)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(state, f)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", dir=os.path.dirname(path), delete=False) as f:
+            temporary = f.name
+            json.dump(state, f)
+        os.replace(temporary, path)
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
 
 
-def session_state(data):
+def session_state(data, entry):
     try:
         with open(session_path(data)) as f:
             state = json.load(f)
@@ -325,6 +333,10 @@ def session_state(data):
         return state
     except FileNotFoundError:
         return {}
+    except (OSError, ValueError) as e:
+        write_log(dict(entry, decision="error", error="%s: %s" % (type(e).__name__, e)))
+        save_session(data, {})
+        return {}
 
 
 def is_coordinator(data, state):
@@ -332,27 +344,35 @@ def is_coordinator(data, state):
     if data.get("agent_id") or data.get("agent_type"):
         return False
     if "coordinator" not in state:
-        coordinator = False
         transcript = data.get("transcript_path")
-        if transcript:
+        if not transcript:
+            return False
+        try:
             with open(transcript, "rb") as f:
-                start = f.read(65536)
-            for line in start.splitlines():
-                try:
-                    row = json.loads(line)
-                except (ValueError, UnicodeError):
-                    continue
-                if not isinstance(row, dict) or row.get("type") != "user":
-                    continue
-                message = row.get("message") or {}
-                content = message.get("content", "") if isinstance(message, dict) else ""
-                if isinstance(content, list):
-                    content = "\n".join(c.get("text", "") for c in content
-                                        if isinstance(c, dict) and c.get("type") == "text")
-                coordinator = bool(isinstance(content, str) and
-                                   re.search(r"^\*\*Lead session:\*\*[^\n]*$", content, re.M))
-                break
-        state["coordinator"] = coordinator
+                remaining = 2 * 1024 * 1024
+                while remaining:
+                    line = f.readline(remaining)
+                    if not line:
+                        break
+                    remaining -= len(line)
+                    try:
+                        row = json.loads(line)
+                    except (ValueError, UnicodeError):
+                        continue
+                    if not isinstance(row, dict) or row.get("type") != "user":
+                        continue
+                    message = row.get("message") or {}
+                    content = message.get("content", "") if isinstance(message, dict) else ""
+                    if isinstance(content, list):
+                        content = "\n".join(c.get("text", "") for c in content
+                                            if isinstance(c, dict) and c.get("type") == "text")
+                    state["coordinator"] = bool(isinstance(content, str) and
+                                               re.search(r"^\*\*Lead session:\*\*[^\n]*$", content, re.M))
+                    break
+        except OSError:
+            return False
+        if "coordinator" not in state:
+            return False
         save_session(data, state)
     return state["coordinator"]
 
@@ -378,7 +398,16 @@ def changed_files(cwd):
 def check_coordinator(data, entry):
     if data.get("agent_id") or data.get("agent_type"):
         return False
-    state = session_state(data)
+    path = session_path(data)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    # Keep role detection, read counts and edit classification in one transaction.
+    with open(path + ".lock", "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return check_coordinator_locked(data, entry)
+
+
+def check_coordinator_locked(data, entry):
+    state = session_state(data, entry)
     if not is_coordinator(data, state):
         return False
     tool, ti = data.get("tool_name"), data.get("tool_input") or {}

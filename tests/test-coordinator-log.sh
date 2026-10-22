@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 hook, tmp = sys.argv[1], Path(sys.argv[2])
 repo = tmp / 'repo'; repo.mkdir()
 track = tmp / 'track'; track.mkdir()
@@ -64,13 +65,62 @@ assert call('Edit',{'file_path':str(link / 'touched')})['detail'] == 'fix'
 assert call('Edit',{'file_path':'untouched'}, session='other', transcript_path=str(plain)) is None
 assert call('Edit',{'file_path':'touched'}, agent_id='worker', agent_type='implementer') is None
 assert call('Read',{}, session='other', transcript_path=str(plain)) is None
+# Hook attachments can precede the brief by more than the short transcript window.
+brief = json.dumps({'type':'user', 'message':{'content':'# Brief\n**Lead session:** local_x'}}) + '\n'
+attachments = json.dumps({'type':'queue-operation'}) + '\n' + (
+    json.dumps({'type':'attachment', 'content':'x' * 25000}) + '\n') * 4
+large = tmp / 'large.jsonl'
+large.write_text(attachments + brief)
+assert call('Read',{}, session='large', transcript_path=str(large)) is None
+assert json.loads((log.parent / 'sessions' / 'large').read_text())['reads'] == 1
+# A transcript without a user entry stays eligible for detection on later calls.
+pending = tmp / 'pending.jsonl'; pending.write_text(attachments)
+assert call('Read',{}, session='pending', transcript_path=str(pending)) is None
+assert not (log.parent / 'sessions' / 'pending').exists()
+with pending.open('a') as f:
+    f.write(brief)
+assert call('Read',{}, session='pending', transcript_path=str(pending)) is None
+assert json.loads((log.parent / 'sessions' / 'pending').read_text())['reads'] == 1
+# Missing, unreadable and capped transcripts do not log errors or cache a role.
+missing = tmp / 'missing.jsonl'
+for session, path in [('missing', missing), ('unreadable', tmp)]:
+    assert call('Read',{}, session=session, transcript_path=str(path)) is None
+    assert not (log.parent / 'sessions' / session).exists()
+missing.write_text(brief)
+assert call('Read',{}, session='missing', transcript_path=str(missing)) is None
+assert json.loads((log.parent / 'sessions' / 'missing').read_text())['reads'] == 1
+capped = tmp / 'capped.jsonl'
+capped.write_text(attachments * 22 + brief)
+assert call('Read',{}, session='capped', transcript_path=str(capped)) is None
+assert not (log.parent / 'sessions' / 'capped').exists()
+capped.write_text(brief)
+assert call('Read',{}, session='capped', transcript_path=str(capped)) is None
+assert json.loads((log.parent / 'sessions' / 'capped').read_text())['reads'] == 1
+# Parallel calls share one state transaction and leave complete JSON.
+before = log.read_text()
+payload = json.dumps(dict(session_id='parallel', cwd=str(repo), transcript_path=str(large),
+                          tool_name='Read', tool_input={}))
+def read_parallel(_):
+    r = subprocess.run([sys.executable, hook], input=payload, text=True, capture_output=True)
+    assert r.returncode == 0 and not r.stdout and not r.stderr, r
+with ThreadPoolExecutor(max_workers=50) as pool:
+    list(pool.map(read_parallel, range(50)))
+assert json.loads((log.parent / 'sessions' / 'parallel').read_text())['reads'] == 50
+assert log.read_text() == before
 assert call('Bash',{'command':'git commit -m test'}, session='lead', cwd=str(track))['decision'] == 'lead-write'
-# Corrupt state cannot suppress a lead write; other calls fail open visibly.
+# Corrupt state cannot suppress a lead write; coordinator state recovers after one error.
 (log.parent / 'sessions' / 'lead').write_text('{')
 assert call('Bash',{'command':'git commit -m test'}, session='lead', cwd=str(track))['decision'] == 'lead-write'
 state.write_text('{')
 assert call('Read',{})['decision'] == 'error'
-state.write_text(json.dumps({'coordinator':True}))
+assert json.loads(state.read_text()) == {}
+assert call('Read',{}, transcript_path=str(large)) is None
+assert call('Read',{}, transcript_path=str(large)) is None
+assert json.loads(state.read_text())['reads'] == 2
+state.write_text('[]')
+assert call('Read',{}, transcript_path=str(large))['decision'] == 'error'
+assert call('Read',{}, transcript_path=str(large)) is None
+assert json.loads(state.read_text())['reads'] == 2
 # Git failure allows the call, logs error and makes the failure visible.
 (repo / '.git').rename(repo / '.git-hidden')
 assert call('Edit',{'file_path':'touched'})['decision'] == 'error'

@@ -23,7 +23,7 @@ The lead keeps no watch of its own, so on each wake it checks the coordinators i
 
 App limits the lead works within:
 - Starts require a turn begun by the maintainer. The lead queues next starts and shows additions in chat; any maintainer message starts safe queued work. "Hold" pauses it until they say otherwise. Start cards are for urgent work while the maintainer is away.
-- Put every session you start in the track's sidebar group (one group per track, named with the track's short name), and start its name with the track's short name and the work item.
+- The lead puts every session it starts in the track's sidebar group (one group per track, named with the track's short name), and starts its name with the track's short name and the work item.
 - A session in another permission mode than the sender holds its messages for the maintainer's approval, so the lead and its coordinators run in the same mode.
 - A detached session no longer shows as the lead's in the app's linked sessions; the ids in the parent issue are how the lead finds it.
 
