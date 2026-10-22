@@ -45,11 +45,11 @@ Agents set P2 and P3. A P1 an agent sets takes effect at once. The Today page sh
 
 - Turn the track's intent into work items. Write the plan into the initiative's parent issue (create the parent issue if there is none): work items, order, what each waits for.
 - One work item is one pull request-sized outcome with a clear proof. Write one brief per work item (see "Writing a brief").
-- The delegation table sets the fence. Mechanism choices with no visible product, cost or risk effect are yours; design, scope, budget and risk choices go to the maintainer as options with one recommendation.
+- Anything outside the delegation table (linked from `track.md`) becomes a decision for the maintainer, as options with one recommendation. Mechanism choices with no visible product, cost or risk effect are yours.
 
 ## Writing a brief
 
-Use `templates/brief.md` for each coordinator's prompt.
+One brief for one work item, from `templates/brief.md` in this plugin's repository; it is the prompt of the coordinator.
 
 1. Copy the template's sections as they are and fill every one; write "none" where there is nothing.
 2. Conclusions, not reasoning. The receiver never sees your chat, so every fact needs its link or evidence and every settled decision its link.
@@ -60,7 +60,7 @@ Use `templates/brief.md` for each coordinator's prompt.
 
 ## Starting work items
 
-- Start each work item with the app's start-session tool, the brief as prompt, and the coordinator route's model and effort from `routing.json`; the start check enforces both. Put every session in the track's sidebar group, named with its short name; prefix session names with that short name and the work item.
+- Start each work item with the app's start-session tool, the brief as prompt, and the coordinator route's model and effort from `routing.json`; the start check enforces both. Put every session you start in the track's sidebar group (one group per track, named with the track's short name), and start its name with the track's short name and the work item.
 - Starting a plan's work items needs the maintainer's OK: of the initiative's plan in chat, or an ask to carry out a goal (not to explore one, which goes as above), which is the OK for the plan you write for it in the parent issue, inside the fence. Without either, propose the work items and wait.
 - What the track covers, its purpose and repositories in `track.md`, is the maintainer's: propose a change as a decision.
 - Right after a start, detach the new session with the app's detach tool, so its turns don't wake you; only its messages do. Record its session id in the parent issue's state, next to its work item. If the detach is refused, carry on and say so in this chat.

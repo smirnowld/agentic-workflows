@@ -131,8 +131,8 @@ done
 # Scratchpad and retro-note destinations: redirects and utility writes are private.
 export AGENTIC_RETRO_NOTES="$tmp/notes" TMPDIR="$tmp/temp"
 mkdir -p "$AGENTIC_RETRO_NOTES" "$TMPDIR"
-for target in "$tmp/notes/n.md" '/private/tmp/claude-session/scratchpad/n.md' "$TMPDIR/claude-session/scratchpad/n.md"; do
-  for c in "echo x > '$target'" "echo x >> $target" "tee '$target'" "touch '$target'" "mkdir -p '$target'" "cp input '$target'" "cp -t '$target' input" "sed -i s/a/b/ '$target'" "sed -i '' s/a/b/ '$target'" "rm -f '$target'"; do
+for target in "$tmp/notes/n.md" '/private/tmp/claude-session/project/s1/scratchpad/n.md' "$TMPDIR/claude-session/project/s1/scratchpad/n.md"; do
+  for c in "echo x > '$target'" "echo x >> $target" "tee '$target'" "touch '$target'" "mkdir -p '$target'" "cp input '$target'" "sed -i s/a/b/ '$target'" "sed -i '' s/a/b/ '$target'" "rm -f '$target'"; do
     : > "$log"
     bash_json "$tmp/track" "$c" >/dev/null
     [ ! -s "$log" ] || bad "private target was counted: $c"
@@ -146,6 +146,12 @@ done
 : > "$log"
 bash_json "$tmp/track" "echo x > '$tmp/notes-other/n.md'" >/dev/null
 grep -q '"decision": "lead-write"' "$log" || bad "retro sibling write was missed"
+
+for c in 'touch /tmp/claude-session/project/other/scratchpad/n.md' 'rm -rf /tmp/claude-501' 'cp -rt REPO /tmp/claude-session/project/s1/scratchpad/n.md' 'cp --target=REPO /tmp/claude-session/project/s1/scratchpad/n.md' 'git rm /tmp/claude-session/project/s1/scratchpad/n.md' 'git mv source /tmp/claude-session/project/s1/scratchpad/n.md'; do
+  : > "$log"
+  bash_json "$tmp/track" "$c" >/dev/null
+  grep -q '"decision": "lead-write"' "$log" || bad "write was missed: $c"
+done
 
 # Agent effort precedence, missing values, kind parsing and per-kind route logging.
 python3 - "$hook" "$log" <<'PYTEST' || bad "Agent metadata"
@@ -165,10 +171,12 @@ e = launch(subagent_type="Explore", effort="low")
 assert (e["effort"], e["effort_from"]) == ("low", "input")
 for kind in ("trivial", "specified", "symptom-bug", "native-mobile"):
     for model in ("sonnet", "opus", "gpt-6.1-sol"):
-        e = launch(subagent_type="agentic-workflows:implementer", model=model, effort="low" if kind == "trivial" else "medium", description="  " + kind.upper() + " : do work")
+        e = launch(subagent_type="agentic-workflows:implementer", model=model, effort="low" if kind == "trivial" and model == "sonnet" else "medium", description="  " + kind.upper() + " : do work")
         assert e["kind"] == kind
         assert e["route_ok"] == (model == "sonnet" or (model == "opus" and kind in ("symptom-bug", "native-mobile")))
-        assert e["decision"] == ("allow" if e["route_ok"] else "deny")
+        assert e["decision"] == ("allow" if model in ("sonnet", "opus") else "deny")
+e = launch(subagent_type="agentic-workflows:implementer", model="sonnet", effort="medium", description="trivial: do work")
+assert e["decision"] == "deny" and "Set effort to low on the Agent call." in e["reason"]
 e = launch(subagent_type="agentic-workflows:implementer", effort="medium", description="specified: do work")
 assert e["route_ok"] is True
 for description in ("do specified: work", "unknown: work", ""):

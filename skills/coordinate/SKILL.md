@@ -3,7 +3,9 @@ name: coordinate
 description: What a coordinator does with its brief: route the implementer, test, review, merge inside the fence and report back to the lead. Use when a session starts from a brief.
 ---
 
-You coordinate one work item. Never author initial content: code, ADRs, docs or AGENTS.md. Only fix a named review finding in a file the implementer changed, resolve merge conflicts, or edit the pull request body. Send searches over about five reads to an explorer and live runs, browser or simulator checks to the tester. Mechanism choices with no visible product, cost or risk effect are yours within the work item; design, scope, budget and risk choices go to the maintainer as options with one recommendation.
+You take one work item from the brief you were started with. You coordinate subagents and check their evidence; you do not implement.
+Never write anything new yourself (code, ADRs, docs, AGENTS.md): the implementer writes it. Only fix a named review finding in a file the implementer changed, resolve merge conflicts, or edit the pull request body. Send searches over about five reads to an explorer and live runs, browser or simulator checks to the tester.
+Mechanism choices with no visible product, cost or risk effect are yours within the work item; design, scope, budget and risk choices go to the maintainer as options with one recommendation.
 
 1. **Worktree.** Work in your own worktree on a new branch. Never touch other sessions' worktrees, branches or processes.
 2. **Route.** Read `routing.json` and take the brief's "Implementer kind" (trivial, specified, symptom-bug, native-mobile).

@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""PreToolUse hook for the Agent and Bash tools.
+"""PreToolUse hook for Agent, Bash, Edit, Write, MultiEdit, Read, Grep and Glob.
 
 Agent: maps an "agentic-workflows:ROLE" subagent_type to a role in routing.json
 and allows the launch only when the model is one routing.json allows for that
 role. A launch without a model uses the one in the role's agent file, so it is
 checked the same way; it is denied when that cannot be read or is not allowed.
-Effort must be explicit and match the selected route, including implementer kind.
+Effort must be explicit and match a Claude route for the model, preferring the given kind.
 The deny message names the primary route's model first. Other subagent types,
 bare names included, are the user's or the project's own agents and pass.
 
-Edit/Write/Read/Grep/Glob/Bash: coordinator edits and reads are logged.
+Edit/Write/MultiEdit/Bash: coordinator edits are logged; Read/Grep/Glob and
+read-only Bash calls increment the session read count in sessions/SESSION_ID.
 Bash: in a lead's track folder (cwd holds both track.md and CLAUDE.md), a
 command that writes is logged, never blocked.
 
-Every Agent decision (allow, deny, pass) and every lead write is appended as
+Every Agent decision (allow, deny, pass), coordinator edit and lead write is appended as
 one JSON line to ${AGENTIC_LOG_DIR:-$HOME/.claude/agentic-workflows}/launch-log.jsonl.
 The hook never fails closed on its own errors: any exception allows the call
 and is logged as decision "error".
@@ -165,8 +166,10 @@ def check_agent(data, entry):
               [spec if spec.get("family") == "claude" else spec["claude"]])
     if role == "implementer" and entry.get("kind"):
         kind_spec = spec["kinds"][entry["kind"]]
-        routes = [r for r in (kind_spec.get("primary"), kind_spec.get("fallback"))
-                  if r and r.get("family") == "claude"]
+        kind_routes = [r for r in (kind_spec.get("primary"), kind_spec.get("fallback"))
+                       if r and r.get("family") == "claude"]
+        if any(effective and model_ok(effective, [r["model"]]) for r in kind_routes):
+            routes = kind_routes
     efforts = list(dict.fromkeys(r["effort"] for r in routes
                                 if effective and model_ok(effective, [r["model"]])))
     if effective and model_ok(effective, allowed) and effort in efforts:
@@ -223,15 +226,19 @@ def private_target(path, data):
         return False
     if re.match(r"^\$\{?AGENTIC_RETRO_NOTES\}?(?:/|$)", path):
         return True
-    path = os.path.abspath(os.path.join(data.get("cwd") or "", os.path.expandvars(path)))
-    roots = [os.environ.get("AGENTIC_RETRO_NOTES"), data.get("scratchpad_dir"),
-             os.environ.get("CLAUDE_SCRATCHPAD_DIR")]
-    for root in filter(None, roots):
-        root = os.path.abspath(root)
+    path = os.path.realpath(os.path.join(data.get("cwd") or "", os.path.expandvars(path)))
+    root = os.environ.get("AGENTIC_RETRO_NOTES")
+    if root:
+        root = os.path.realpath(root)
         if path == root or path.startswith(root + os.sep):
             return True
+    session = data.get("session_id")
+    if not session:
+        return False
     for root in {"/private/tmp", "/tmp", os.environ.get("TMPDIR") or tempfile.gettempdir()}:
-        if re.match(re.escape(root.rstrip("/")) + r"/claude-[^/]+(?:/|$)", path):
+        pattern = (re.escape(os.path.realpath(root).rstrip("/")) + r"/claude-[^/]+/[^/]+/"
+                   + re.escape(session) + r"(?:/|$)")
+        if re.match(pattern, path):
             return True
     return False
 
@@ -239,21 +246,19 @@ def private_target(path, data):
 def exclude_private_writes(cmd, data):
     cmd = REDIRECT.sub(lambda m: " " if private_target(m.group(2), data) else m.group(0), cmd)
     # Only discard a utility when every possible destination is private.
-    def utility(m):
+    def utility(command):
         try:
-            args = shlex.split(m.group(0))
+            args = shlex.split(command)
         except ValueError:
-            return m.group(0)
+            return command
         paths = [a for a in args[1:] if not a.startswith("-")]
         if args[0] == "cp":
-            # Target-directory options put the destination before source operands.
-            target = next((a.split("=", 1)[1] for a in args if a.startswith("--target-directory=")), None)
-            for i, a in enumerate(args[:-1]):
-                if a in ("-t", "--target-directory"):
-                    target = args[i + 1]
-            if any(a.startswith("-t") and a != "-t" for a in args):
-                return m.group(0)  # uncertain combined options stay counted
-            paths = [target] if target is not None else paths[-1:]
+            # Target-directory options and clusters stay counted conservatively.
+            if any(a.startswith("--target") or
+                   (a.startswith("-") and not a.startswith("--") and "t" in a[1:])
+                   for a in args[1:]):
+                return command
+            paths = paths[-1:]
         if args[0] == "sed":
             # Only simple substitutions establish that input files are all the writes.
             operands, scripts, i = [], [], 1
@@ -269,17 +274,18 @@ def exclude_private_writes(cmd, data):
                 if a.startswith("-i") or a in ("-E", "-r", "-n"):
                     pass
                 elif a.startswith("-"):
-                    return m.group(0)  # script files and other options stay counted
+                    return command  # script files and other options stay counted
                 elif not scripts:
                     scripts.append(a)
                 else:
                     operands.append(a)
                 i += 1
             if not scripts or not all(re.fullmatch(r"s/[^/;\n]*/[^/;\n]*/[gIp0-9]*", x) for x in scripts):
-                return m.group(0)
+                return command
             paths = operands
-        return " " if paths and all(private_target(a, data) for a in paths) else m.group(0)
-    return re.sub(r"(?<![\w/-])(?:tee|mkdir|touch|rm|mv|cp|sed)\b[^;&|\n]*", utility, cmd)
+        return " " if paths and all(private_target(a, data) for a in paths) else command
+    return re.sub(r"(^|[;&|\n])[ \t]*((?:tee|mkdir|touch|rm|mv|cp|sed)\b[^;&|\n]*)",
+                  lambda m: m.group(1) + utility(m.group(2)), cmd)
 
 def check_bash(data, entry):
     cwd = data.get("cwd") or ""
@@ -296,44 +302,84 @@ def check_bash(data, entry):
     return True
 
 
-def is_coordinator(data):
-    # A started track session is a coordinator; subagents keep their own role.
-    if data.get("agent_id") or data.get("agent_type"):
-        return data.get("agent_type") in ("coordinator", PREFIX + "coordinator")
+def session_path(data):
+    session = str(data.get("session_id") or "unknown")
+    if not re.fullmatch(r"[a-zA-Z0-9_-]+", session):
+        raise ValueError("invalid session id")
+    return os.path.join(os.path.dirname(log_path()), "sessions", session)
+
+
+def save_session(data, state):
+    path = session_path(data)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(state, f)
+
+
+def session_state(data):
     try:
-        with open(log_path()) as f:
-            for line in f:
-                row = json.loads(line)
-                cwd = row.get("cwd") or ""
-                if (row.get("started_session_id") == data.get("session_id")
-                        and row.get("result") == "started"
-                        and os.path.isfile(os.path.join(cwd, "track.md"))
-                        and os.path.isfile(os.path.join(cwd, "CLAUDE.md"))):
-                    return True
+        with open(session_path(data)) as f:
+            state = json.load(f)
+        if not isinstance(state, dict):
+            raise ValueError("invalid session state")
+        return state
     except FileNotFoundError:
-        pass
-    return False
+        return {}
+
+
+def is_coordinator(data, state):
+    # Subagents never inherit the coordinator's role or cached state.
+    if data.get("agent_id") or data.get("agent_type"):
+        return False
+    if "coordinator" not in state:
+        coordinator = False
+        transcript = data.get("transcript_path")
+        if transcript:
+            with open(transcript, "rb") as f:
+                start = f.read(65536)
+            for line in start.splitlines():
+                try:
+                    row = json.loads(line)
+                except (ValueError, UnicodeError):
+                    continue
+                if not isinstance(row, dict) or row.get("type") != "user":
+                    continue
+                message = row.get("message") or {}
+                content = message.get("content", "") if isinstance(message, dict) else ""
+                if isinstance(content, list):
+                    content = "\n".join(c.get("text", "") for c in content
+                                        if isinstance(c, dict) and c.get("type") == "text")
+                coordinator = bool(isinstance(content, str) and
+                                   re.search(r"^\*\*Lead session:\*\*[^\n]*$", content, re.M))
+                break
+        state["coordinator"] = coordinator
+        save_session(data, state)
+    return state["coordinator"]
 
 
 def changed_files(cwd):
     def git(*args):
-        return subprocess.check_output(["git", "-C", cwd, *args], stderr=subprocess.DEVNULL).decode().rstrip("\n")
+        return subprocess.check_output(["git", "-C", cwd, *args], stderr=subprocess.DEVNULL, timeout=5).decode().rstrip("\n")
     try:
         default = git("symbolic-ref", "refs/remotes/origin/HEAD")
     except subprocess.CalledProcessError:
         default = next((r for r in ("origin/main", "origin/master", "main", "master")
                         if subprocess.run(["git", "-C", cwd, "rev-parse", "--verify", r],
-                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0), None)
+                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5).returncode == 0), None)
         if default is None:
             raise RuntimeError("default branch unavailable")
     base = git("merge-base", "HEAD", default)
-    # Implementer-touched means tracked content differs from the default merge base, including working edits.
-    return {os.path.abspath(os.path.join(cwd, p)) for p in
-            git("diff", "--name-only", "-z", base, "--").split("\0") if p}
+    root = git("rev-parse", "--show-toplevel")
+    # Implementer-touched means tracked differences from the default merge base plus untracked files.
+    names = git("diff", "--name-only", "-z", base, "--") + "\0" + git("ls-files", "--full-name", "--others", "--exclude-standard", "-z")
+    return {os.path.realpath(os.path.join(root, p)) for p in names.split("\0") if p}
 
 
 def check_coordinator(data, entry):
-    if not is_coordinator(data):
+    if data.get("agent_id") or data.get("agent_type"):
+        return False
+    state = session_state(data)
+    if not is_coordinator(data, state):
         return False
     tool, ti = data.get("tool_name"), data.get("tool_input") or {}
     entry["role"] = "coordinator"
@@ -356,17 +402,22 @@ def check_coordinator(data, entry):
                 except ValueError:
                     targets = []
         else:
-            entry["decision"] = "coordinator-read"
-            return True
+            state["reads"] = state.get("reads", 0) + 1
+            save_session(data, state)
+            return False
     elif tool in ("Read", "Grep", "Glob"):
-        entry["decision"] = "coordinator-read"
-        return True
+        state["reads"] = state.get("reads", 0) + 1
+        save_session(data, state)
+        return False
     else:
         return False
     touched = changed_files(data.get("cwd") or "")
-    paths = [os.path.abspath(os.path.join(data.get("cwd") or "", t)) for t in targets]
-    entry.update(decision="coordinator-edit", detail="fix" if paths and all(p in touched for p in paths)
-                 else "first-version")
+    paths = [os.path.realpath(os.path.join(data.get("cwd") or "", t)) for t in targets]
+    own = set(state.get("first_versions", []))
+    first = {p for p in paths if p not in touched or p in own}
+    state["first_versions"] = sorted(own | first)
+    save_session(data, state)
+    entry.update(decision="coordinator-edit", detail="fix" if paths and not first else "first-version")
     return True
 
 
@@ -380,9 +431,9 @@ def main():
         tool = data.get("tool_name")
         if tool == "Agent":
             out = check_agent(data, entry)
-        elif check_coordinator(data, entry):
-            pass
-        elif tool != "Bash" or not check_bash(data, entry):
+        elif tool == "Bash" and check_bash(data, entry):
+            pass  # Lead writes are logged independently of coordinator state failures.
+        elif not check_coordinator(data, entry):
             return 0
     except Exception as e:
         entry["decision"] = "error"

@@ -22,7 +22,8 @@ The app lets a session that starts another watch it: every turn the started sess
 The lead keeps no watch of its own, so on each wake it checks the coordinators in flight, by the session ids it keeps in the parent issue. A stuck one (its turn ended with no report, it waits on a permission prompt, or it has been quiet for two hours) gets one message; still stuck at the next wake, the lead says so in its chat and sends a notification. A coordinator stuck while the lead sleeps shows at the lead's next wake; one with no board update for days also shows in the Today page's drift.
 
 App limits the lead works within:
-- Starts require a turn begun by the maintainer. The lead queues next starts and shows additions in chat; any maintainer message starts safe queued work. "Hold" pauses it until they say otherwise. Start cards are for urgent work while the maintainer is away. Every session goes in the track's sidebar group, named with its short name, with that short name and work item prefixing the session name.
+- Starts require a turn begun by the maintainer. The lead queues next starts and shows additions in chat; any maintainer message starts safe queued work. "Hold" pauses it until they say otherwise. Start cards are for urgent work while the maintainer is away.
+- Put every session you start in the track's sidebar group (one group per track, named with the track's short name), and start its name with the track's short name and the work item.
 - A session in another permission mode than the sender holds its messages for the maintainer's approval, so the lead and its coordinators run in the same mode.
 - A detached session no longer shows as the lead's in the app's linked sessions; the ids in the parent issue are how the lead finds it.
 
