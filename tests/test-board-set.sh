@@ -38,6 +38,9 @@ if 'fields(first: 50)' in q:
     fields += [dict(id=k.lower(), name=k.title(), dataType=k) for k in ('TEXT', 'NUMBER', 'DATE', 'ITERATION')]
     print(json.dumps({'data': {kind: {'projectV2': {'id': 'project', 'fields': {'nodes': fields}}}}}))
 elif 'resource(url:' in q or 'nodes(ids:' in q:
+    if mode == 'lookup-null':
+        print(json.dumps({'data': None, 'errors': [{'message': 'lookup denied'}]}))
+        sys.exit(1)
     data = {}
     if 'ids' in v:
         assert len(v['ids']) <= 100
@@ -58,7 +61,24 @@ elif 'resource(url:' in q or 'nodes(ids:' in q:
         data['nodes'][i] = None
         print(json.dumps({'data': data, 'errors': [{'message': 'Could not resolve to a node', 'path': ['nodes', i]}]}))
         sys.exit(1)
-    print(json.dumps({'data': data}))
+    errors = []
+    if mode == 'lookup-id-error':
+        data['nodes'][0] = None
+        errors = [{'message': 'lookup denied', 'path': ['nodes', 0]}]
+    if mode == 'lookup-url-error':
+        data['u0'] = None
+        errors = [{'message': 'lookup denied', 'path': ['u0']}]
+    if mode == 'lookup-id-present-error':
+        errors = [{'message': 'lookup denied', 'path': ['nodes', 0, 'project']}]
+    if mode == 'lookup-url-present-error':
+        errors = [{'message': 'lookup denied', 'path': ['u0', 'projectItems']}]
+    if mode == 'lookup-missing-nodes':
+        del data['nodes']
+    if mode == 'lookup-missing-alias':
+        del data['u0']
+    if mode == 'lookup-missing-url-nodes':
+        del data['u0']['projectItems']['nodes']
+    print(json.dumps({'data': data, 'errors': errors}))
 else:
     assert q.startswith('mutation(')
     n = sum(k.startswith('item') for k in v)
@@ -69,9 +89,28 @@ else:
         assert isinstance(v['value%d' % i], dict)
         assert ('m%d: updateProjectV2ItemFieldValue' % i) in q
     data = {'m%d' % i: {'projectV2Item': {'id': v['item%d' % i]}} for i in range(n)}
-    if mode == 'partial':
+    if mode in ('partial', 'partial-missing'):
         data['m1'] = None
+        if mode == 'partial-missing':
+            del data['m1']
         print(json.dumps({'data': data, 'errors': [{'message': 'item denied', 'path': ['m1']}]}))
+        sys.exit(1)
+    if mode == 'mutation-null-path':
+        print(json.dumps({'data': None, 'errors': [{'message': 'item denied', 'path': ['m0']}]}))
+        sys.exit(1)
+    if mode == 'mutation-pathless':
+        print(json.dumps({'data': data, 'errors': [{'message': 'request denied'}]}))
+        sys.exit(1)
+    if mode == 'mutation-missing-alias':
+        del data['m1']
+    if mode == 'mutation-null-alias':
+        data['m1'] = None
+    if mode in ('mutation-data-list', 'mutation-data-string'):
+        print(json.dumps({'data': [] if mode.endswith('list') else 'bad',
+                          'errors': [{'message': 'item denied', 'path': ['m0']}]}))
+        sys.exit(1)
+    if mode in ('mutation-error-string', 'mutation-error-null'):
+        print(json.dumps({'data': data, 'errors': ['bad' if mode.endswith('string') else None]}))
         sys.exit(1)
     print(json.dumps({'data': data}))
 PY
@@ -151,6 +190,10 @@ grep -qx 'PVTI_0 -> Ready' "$tmp/out"; check 'partial m0 success' 0 $?
 grep -qx 'PVTI_2 -> Ready' "$tmp/out"; check 'partial m2 success' 0 $?
 grep -qx 'board-set: not set: PVTI_1 -> In progress: item denied' "$tmp/err"; check 'partial failure mapped' 0 $?
 grep -qx 'board-set: 10 items not attempted in later chunks' "$tmp/err"; check 'later chunk count' 0 $?
+ERROR=write; export ERROR
+run "$@"
+check 'uncertain chunk exit' 1 "$rc"; counts 'uncertain stops later chunks' 1 3
+grep -qx 'board-set: 10 items not attempted in later chunks' "$tmp/err"; check 'uncertain later chunk count' 0 $?
 unset ERROR
 
 for field in Text Number Date; do
@@ -200,6 +243,25 @@ for item in PVTI_other PVTI_unknown PVTI_notitem PVTI_missing; do
     check 'invalid board membership' 2 "$rc"; counts 'membership' 0 2
     grep -q "$item" "$tmp/err"; check 'invalid ID named' 0 $?
 done
+for ERROR in lookup-null lookup-id-error lookup-id-present-error lookup-missing-nodes; do
+    export ERROR
+    run PVTI_a=Ready
+    check "$ERROR exit" 1 "$rc"; counts "$ERROR" 0 2
+    grep -q 'not on this board\|Traceback' "$tmp/err"; check "$ERROR clean read failure" 1 $?
+    if [ "$ERROR" != lookup-missing-nodes ]; then
+        grep -q 'lookup denied' "$tmp/err"; check "$ERROR GraphQL message" 0 $?
+    fi
+done
+for ERROR in lookup-url-error lookup-url-present-error lookup-missing-alias lookup-missing-url-nodes; do
+    export ERROR
+    run https://github.com/o/r/issues/1=Ready
+    check "$ERROR exit" 1 "$rc"; counts "$ERROR" 0 2
+    grep -q 'not on this board\|Traceback' "$tmp/err"; check "$ERROR clean read failure" 1 $?
+    case "$ERROR" in
+        *error) grep -q 'lookup denied' "$tmp/err"; check "$ERROR GraphQL message" 0 $? ;;
+    esac
+done
+unset ERROR
 run PVTI_a=Ready PVTI_a=Ready
 check 'duplicate item' 2 "$rc"; counts 'duplicate item' 0 0
 run PVTI_url0=Ready https://github.com/o/r/issues/1=Ready
@@ -213,13 +275,31 @@ ERROR=nonobject; export ERROR
 run PVTI_a=Ready
 check 'nonobject read' 2 "$rc"
 grep -qx 'board-set: unreadable answer from gh' "$tmp/err"; check 'clean nonobject error' 0 $?
-for ERROR in transport unreadable mutation-nonobject; do
+for ERROR in transport unreadable mutation-nonobject write mutation-null-path mutation-pathless mutation-data-list mutation-data-string mutation-error-string mutation-error-null; do
     export ERROR
     run PVTI_a=Ready PVTI_b=Ready
     check 'uncertain mutation exit' 1 "$rc"
     grep -q 'writes for this chunk may or may not have happened' "$tmp/err"; check 'uncertain writes warning' 0 $?
     grep -qx 'board-set: PVTI_a -> Ready' "$tmp/err"; check 'uncertain first item' 0 $?
     grep -qx 'board-set: PVTI_b -> Ready' "$tmp/err"; check 'uncertain second item' 0 $?
+    grep -q 'not set:\|Traceback\|0 items not attempted' "$tmp/err"; check "$ERROR clean uncertainty" 1 $?
+    check "$ERROR no claimed successes" 0 "$(wc -l < "$tmp/out" | tr -d ' ')"
+done
+for ERROR in mutation-missing-alias mutation-null-alias; do
+    export ERROR
+    run PVTI_a=Ready PVTI_b=Ready
+    check "$ERROR exit" 1 "$rc"
+    grep -qx 'PVTI_a -> Ready' "$tmp/out"; check "$ERROR known success" 0 $?
+    grep -qx 'board-set: writes for this chunk may or may not have happened:' "$tmp/err"; check "$ERROR uncertain warning" 0 $?
+    grep -qx 'board-set: PVTI_b -> Ready' "$tmp/err"; check "$ERROR uncertain item" 0 $?
+    grep -q 'board-set: PVTI_a\|not set:\|Traceback\|0 items not attempted' "$tmp/err"; check "$ERROR only uncertain item" 1 $?
+done
+for ERROR in partial partial-missing; do
+    export ERROR
+    run PVTI_a=Ready PVTI_b=Ready
+    check "$ERROR last chunk exit" 1 "$rc"
+    grep -qx 'board-set: not set: PVTI_b -> Ready: item denied' "$tmp/err"; check "$ERROR named failure" 0 $?
+    grep -q 'items not attempted\|may or may not' "$tmp/err"; check "$ERROR no later count or uncertainty" 1 $?
 done
 unset ERROR
 : > "$CALLS"

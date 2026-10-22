@@ -139,10 +139,34 @@ def resolve_items(items, project_id):
               ... on Issue { projectItems(first: 20) { nodes { id project { id } } } }
               ... on PullRequest { projectItems(first: 20) { nodes { id project { id } } } }
             }""" % (i, i))
-        answer = gql("query(%s) { %s }" % (", ".join(declarations), "\n".join(selections)),
-                     full_answer=True, **variables)
-        data = answer.get("data") or {}
-        nodes = data.get("nodes") or []
+        try:
+            answer = gql("query(%s) { %s }" % (", ".join(declarations), "\n".join(selections)),
+                         full_answer=True, **variables)
+        except RuntimeError as e:
+            raise GraphQLError(str(e))
+        errors = answer.get("errors") or []
+        for error in errors:
+            path = error.get("path") if isinstance(error, dict) else None
+            if (isinstance(path, list) and len(path) == 2 and path[0] == "nodes"
+                    and isinstance(path[1], int) and 0 <= path[1] < len(chunk)
+                    and "Could not resolve to a node" in error.get("message", "")):
+                continue
+            raise GraphQLError(json.dumps(errors))
+        data = answer.get("data")
+        if not isinstance(data, dict):
+            raise GraphQLError(json.dumps(errors) if errors else "unreadable item lookup")
+        nodes = data.get("nodes", [])
+        if chunk and ("nodes" not in data or not isinstance(nodes, list)):
+            raise GraphQLError("missing nodes in item lookup")
+        for i, url in enumerate(batch_urls):
+            alias = "u%d" % i
+            if alias not in data:
+                raise GraphQLError("missing %s in item lookup" % alias)
+            resource = data[alias]
+            if resource is not None and (not isinstance(resource, dict)
+                    or not isinstance(resource.get("projectItems"), dict)
+                    or not isinstance(resource["projectItems"].get("nodes"), list)):
+                raise GraphQLError("missing nodes in URL lookup: %s" % url)
         by_id = {n.get("id"): n for n in nodes if isinstance(n, dict)}
         for item in chunk:
             if (by_id.get(item, {}).get("project") or {}).get("id") != project_id:
@@ -153,13 +177,18 @@ def resolve_items(items, project_id):
             if not match:
                 die("URL is not on this board: %s" % url)
             resolved[url] = match
-        if answer.get("errors"):
-            raise GraphQLError(json.dumps(answer["errors"]))
     return resolved
 
 
 def not_attempted(count):
-    sys.stderr.write("board-set: %d items not attempted in later chunks\n" % count)
+    if count > 0:
+        sys.stderr.write("board-set: %d items not attempted in later chunks\n" % count)
+
+
+def uncertain_writes(items):
+    sys.stderr.write("board-set: writes for this chunk may or may not have happened:\n")
+    for item, value in items:
+        sys.stderr.write("board-set: %s -> %s\n" % (item, value))
 
 
 def main(argv):
@@ -224,28 +253,36 @@ def main(argv):
                 answer = gql("mutation(%s) { %s }" % (", ".join(declarations), "\n".join(mutations)),
                              full_answer=True, **variables)
             except RuntimeError as e:
-                sys.stderr.write("board-set: %s; writes for this chunk may or may not have happened:\n" % e)
-                for item, value in chunk:
-                    sys.stderr.write("board-set: %s -> %s\n" % (item, value))
+                sys.stderr.write("board-set: %s\n" % e)
+                uncertain_writes(chunk)
                 not_attempted(len(items) - start - len(chunk))
                 return 1
-            data = answer.get("data") or {}
+            data = answer.get("data")
             errors = answer.get("errors") or []
+            if (not isinstance(data, dict) or not isinstance(errors, list)
+                    or any(not isinstance(e, dict) or not isinstance(e.get("path"), list)
+                           or not e["path"] for e in errors)):
+                sys.stderr.write("board-set: %s\n" % json.dumps(errors))
+                uncertain_writes(chunk)
+                not_attempted(len(items) - start - len(chunk))
+                return 1
             failed = False
+            uncertain = []
             for i, (item, value) in enumerate(chunk):
                 alias = "m%d" % i
-                if data.get(alias) is not None:
+                messages = [str(e.get("message", "GraphQL error")) for e in errors
+                            if e["path"][0] == alias]
+                if messages:
+                    sys.stderr.write("board-set: not set: %s -> %s: %s\n" %
+                                     (item, value, "; ".join(messages)))
+                    failed = True
+                elif data.get(alias) is not None:
                     print("%s -> %s" % (item, value))
                 else:
-                    messages = [e.get("message", "GraphQL error") for e in errors
-                                if not e.get("path") or e["path"][0] == alias]
-                    sys.stderr.write("board-set: not set: %s -> %s: %s\n" %
-                                     (item, value, "; ".join(messages) or "no success returned"))
-                    failed = True
-            if errors or failed:
-                for error in errors:
-                    if not error.get("path"):
-                        sys.stderr.write("board-set: %s\n" % error.get("message", "GraphQL error"))
+                    uncertain.append((item, value))
+            if uncertain:
+                uncertain_writes(uncertain)
+            if errors or failed or uncertain:
                 not_attempted(len(items) - start - len(chunk))
                 return 1
         else:
