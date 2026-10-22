@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Gate a coordinator message before SendMessage.
+
+  report-lead --lead SESSION --kind KIND --message TEXT
+
+Kinds: done, blocked, decision, plan-change. Prints KIND: TEXT on success.
+Exit 64: invalid arguments; 1: duplicate within ten minutes; 2: state error.
+State is kept under AGENTIC_LOG_DIR, or ~/.claude/agentic-workflows.
+"""
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import time
+
+
+class Parser(argparse.ArgumentParser):
+    def error(self, message):
+        print('report-lead: ' + message, file=sys.stderr)
+        raise SystemExit(64)
+
+
+def main():
+    parser = Parser(description=__doc__)
+    parser.add_argument('--lead', required=True)
+    parser.add_argument('--kind', required=True, choices=('done', 'blocked', 'decision', 'plan-change'))
+    parser.add_argument('--message', required=True)
+    try:
+        args = parser.parse_args()
+    except SystemExit as e:
+        return 64 if e.code else 0
+    if not args.lead.strip() or not args.message.strip():
+        print('report-lead: lead and message must not be empty', file=sys.stderr)
+        return 64
+    base = Path(os.environ.get('AGENTIC_LOG_DIR') or Path.home() / '.claude' / 'agentic-workflows')
+    key = hashlib.sha256(json.dumps([args.lead, args.kind, args.message]).encode()).hexdigest()
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+        with (base / 'report-lead.lock').open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            path = base / 'report-lead.json'
+            state = json.loads(path.read_text()) if path.exists() else {}
+            current = time.time()
+            state = {k: v for k, v in state.items() if current - v < 600}
+            if key in state:
+                print('report-lead: identical message sent within ten minutes', file=sys.stderr)
+                return 1
+            state[key] = current
+            tmp = base / 'report-lead.tmp'
+            tmp.write_text(json.dumps(state))
+            tmp.replace(path)
+    except (OSError, ValueError, TypeError) as e:
+        print('report-lead: cannot record message: %s' % str(e).replace('\n', ' '), file=sys.stderr)
+        return 2
+    print('%s: %s' % (args.kind, args.message))
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
