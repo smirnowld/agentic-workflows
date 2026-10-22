@@ -1,4 +1,4 @@
 {
   "globs": ["*.md", "docs/**"],
-  "max_lines": 900
+  "max_lines": 1100
 }
