@@ -1,0 +1,301 @@
+#!/usr/bin/env python3
+"""Set a project field for many board items with batched GraphQL requests.
+
+  board-set OWNER NUMBER [--field Status] [--dry-run] ITEM=VALUE ...
+  board-set OWNER NUMBER [--field Status] [--dry-run] < lines
+
+Input lines contain ITEM VALUE, with the rest of the line used as the value.
+Blank lines and lines starting with # are skipped. Items are PVTI_ IDs or
+GitHub issue and pull request URLs. Dry runs resolve and validate without writes.
+Reruns are safe: setting a field to the same value is idempotent.
+"""
+import argparse
+from datetime import date
+import json
+import math
+import re
+import subprocess
+import sys
+
+PROJECT = """
+query($owner: String!, $number: Int!) {
+  %s(login: $owner) {
+    projectV2(number: $number) {
+      id
+      fields(first: 50) {
+        nodes {
+          ... on ProjectV2Field { id name dataType }
+          ... on ProjectV2SingleSelectField { id name dataType options { id name } }
+          ... on ProjectV2IterationField { id name dataType }
+        }
+      }
+    }
+  }
+}"""
+URL = re.compile(r"https://github\.com/[^/\s]+/[^/\s]+/(?:issues|pull)/[0-9]+\Z")
+
+
+class GraphQLError(RuntimeError):
+    pass
+
+
+def die(msg):
+    sys.stderr.write("board-set: %s\n" % msg)
+    sys.exit(2)
+
+
+def gql(query, *, full_answer=False, **variables):
+    try:
+        r = subprocess.run(["gh", "api", "graphql", "--input", "-"],
+                           input=json.dumps({"query": query, "variables": variables}),
+                           capture_output=True, text=True)
+    except OSError as e:
+        raise RuntimeError(str(e))
+    try:
+        answer = json.loads(r.stdout)
+    except ValueError:
+        raise RuntimeError(r.stderr.strip() or "unreadable answer from gh")
+    if not isinstance(answer, dict):
+        raise RuntimeError("unreadable answer from gh")
+    if full_answer:
+        if not isinstance(answer.get("data"), dict) and not answer.get("errors"):
+            raise RuntimeError(r.stderr.strip() or "unreadable answer from gh")
+        if r.returncode and not answer.get("errors"):
+            raise RuntimeError(r.stderr.strip() or "gh failed")
+        return answer
+    if answer.get("errors"):
+        raise GraphQLError(json.dumps(answer["errors"]))
+    if r.returncode:
+        raise RuntimeError(r.stderr.strip() or "gh failed")
+    if not isinstance(answer.get("data"), dict):
+        raise RuntimeError("unreadable answer from gh")
+    return answer["data"]
+
+
+def project(owner, number):
+    for kind in ("organization", "user"):
+        try:
+            data = gql(PROJECT % kind, owner=owner, number=number)
+        except RuntimeError as e:
+            message = str(e).lower()
+            if "could not resolve to a projectv2" in message:
+                die("no such project %s/%s" % (owner, number))
+            if kind == "organization" and "could not resolve to an organization" in message:
+                continue
+            raise
+        result = (data.get(kind) or {}).get("projectV2")
+        if result:
+            return result
+        if kind == "user" or data.get(kind):
+            break
+    die("no such project %s/%s" % (owner, number))
+
+
+def field_value(field, value):
+    kind = field["dataType"]
+    if kind == "SINGLE_SELECT":
+        option = next((o for o in field["options"] if o["name"].casefold() == value.casefold()), None)
+        if not option:
+            die("unknown option %r for field %s" % (value, field["name"]))
+        return {"singleSelectOptionId": option["id"]}
+    if kind == "TEXT":
+        return {"text": value}
+    if kind == "NUMBER":
+        try:
+            number = float(value)
+            if not math.isfinite(number):
+                raise ValueError
+        except ValueError:
+            die("invalid number %r" % value)
+        return {"number": number}
+    if kind == "DATE":
+        try:
+            if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value):
+                raise ValueError
+            date.fromisoformat(value)
+        except ValueError:
+            die("invalid date %r; expected YYYY-MM-DD" % value)
+        return {"date": value}
+    die("unsupported field type %s for %s" % (kind, field["name"]))
+
+
+def resolve_items(items, project_id):
+    urls = [item for item, _ in items if URL.fullmatch(item)]
+    ids = [item for item, _ in items if item.startswith("PVTI_")]
+    resolved = {}
+    # Combine URL resolution with the first ID chunk; every read checks at most 100 IDs.
+    for start in range(0, max(1, len(ids)), 100):
+        declarations, selections, variables = [], [], {}
+        chunk = ids[start:start + 100]
+        if chunk:
+            declarations.append("$ids: [ID!]!")
+            variables["ids"] = chunk
+            selections.append("nodes(ids: $ids) { ... on ProjectV2Item { id project { id } } }")
+        batch_urls = urls if start == 0 else []
+        for i, url in enumerate(batch_urls):
+            declarations.append("$url%d: URI!" % i)
+            variables["url%d" % i] = url
+            selections.append("""u%d: resource(url: $url%d) {
+              ... on Issue { projectItems(first: 20) { nodes { id project { id } } } }
+              ... on PullRequest { projectItems(first: 20) { nodes { id project { id } } } }
+            }""" % (i, i))
+        try:
+            answer = gql("query(%s) { %s }" % (", ".join(declarations), "\n".join(selections)),
+                         full_answer=True, **variables)
+        except RuntimeError as e:
+            raise GraphQLError(str(e))
+        errors = answer.get("errors") or []
+        for error in errors:
+            path = error.get("path") if isinstance(error, dict) else None
+            if (isinstance(path, list) and len(path) == 2 and path[0] == "nodes"
+                    and isinstance(path[1], int) and 0 <= path[1] < len(chunk)
+                    and "Could not resolve to a node" in error.get("message", "")):
+                continue
+            raise GraphQLError(json.dumps(errors))
+        data = answer.get("data")
+        if not isinstance(data, dict):
+            raise GraphQLError(json.dumps(errors) if errors else "unreadable item lookup")
+        nodes = data.get("nodes", [])
+        if chunk and ("nodes" not in data or not isinstance(nodes, list)):
+            raise GraphQLError("missing nodes in item lookup")
+        for i, url in enumerate(batch_urls):
+            alias = "u%d" % i
+            if alias not in data:
+                raise GraphQLError("missing %s in item lookup" % alias)
+            resource = data[alias]
+            if resource is not None and (not isinstance(resource, dict)
+                    or not isinstance(resource.get("projectItems"), dict)
+                    or not isinstance(resource["projectItems"].get("nodes"), list)):
+                raise GraphQLError("missing nodes in URL lookup: %s" % url)
+        by_id = {n.get("id"): n for n in nodes if isinstance(n, dict)}
+        for item in chunk:
+            if (by_id.get(item, {}).get("project") or {}).get("id") != project_id:
+                die("item is not on this board: %s" % item)
+        for i, url in enumerate(batch_urls):
+            nodes = ((data.get("u%d" % i) or {}).get("projectItems") or {}).get("nodes") or []
+            match = next((n["id"] for n in nodes if (n.get("project") or {}).get("id") == project_id), None)
+            if not match:
+                die("URL is not on this board: %s" % url)
+            resolved[url] = match
+    return resolved
+
+
+def not_attempted(count):
+    if count > 0:
+        sys.stderr.write("board-set: %d items not attempted in later chunks\n" % count)
+
+
+def uncertain_writes(items):
+    sys.stderr.write("board-set: writes for this chunk may or may not have happened:\n")
+    for item, value in items:
+        sys.stderr.write("board-set: %s -> %s\n" % (item, value))
+
+
+def main(argv):
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("owner")
+    parser.add_argument("number", type=int)
+    parser.add_argument("--field", default="Status")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("items", nargs="*")
+    args = parser.parse_intermixed_args(argv)
+    items = []
+    for arg in args.items:
+        item, sep, value = arg.partition("=")
+        if not sep:
+            die("expected ITEM=VALUE: %s" % arg)
+        items.append((item, value))
+    if not args.items and not sys.stdin.isatty():
+        for line in sys.stdin:
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            parts = re.fullmatch(r"\s*(\S+)[ \t](.*)", line.rstrip("\r\n"))
+            if not parts:
+                die("expected ITEM VALUE: %s" % line.strip())
+            items.append(parts.groups())
+    if not items:
+        parser.print_usage(sys.stderr)
+        return 2
+    seen = set()
+    for item, _ in items:
+        if item in seen:
+            die("duplicate item: %s" % item)
+        seen.add(item)
+        if not item.startswith("PVTI_") and not URL.fullmatch(item):
+            die("invalid item ID or issue / pull request URL: %s" % item)
+    board = project(args.owner, args.number)
+    field = next((f for f in board["fields"]["nodes"]
+                  if f and f.get("name", "").casefold() == args.field.casefold()), None)
+    if not field:
+        die("unknown field %r" % args.field)
+    values = [field_value(field, value) for _, value in items]
+    resolved = resolve_items(items, board["id"])
+    seen = set()
+    for item, _ in items:
+        item_id = resolved.get(item, item)
+        if item_id in seen:
+            die("duplicate item: %s" % item)
+        seen.add(item_id)
+    for start in range(0, len(items), 50):
+        chunk = items[start:start + 50]
+        if not args.dry_run:
+            declarations = ["$project: ID!", "$field: ID!"]
+            mutations = []
+            variables = {"project": board["id"], "field": field["id"]}
+            for i, (item, _) in enumerate(chunk):
+                declarations += ["$item%d: ID!" % i, "$value%d: ProjectV2FieldValue!" % i]
+                variables["item%d" % i] = resolved.get(item, item)
+                variables["value%d" % i] = values[start + i]
+                mutations.append("""m%d: updateProjectV2ItemFieldValue(input: {
+                  projectId: $project, fieldId: $field, itemId: $item%d, value: $value%d
+                }) { projectV2Item { id } }""" % (i, i, i))
+            try:
+                answer = gql("mutation(%s) { %s }" % (", ".join(declarations), "\n".join(mutations)),
+                             full_answer=True, **variables)
+            except RuntimeError as e:
+                sys.stderr.write("board-set: %s\n" % e)
+                uncertain_writes(chunk)
+                not_attempted(len(items) - start - len(chunk))
+                return 1
+            data = answer.get("data")
+            errors = answer.get("errors") or []
+            if (not isinstance(data, dict) or not isinstance(errors, list)
+                    or any(not isinstance(e, dict) or not isinstance(e.get("path"), list)
+                           or not e["path"] for e in errors)):
+                sys.stderr.write("board-set: %s\n" % json.dumps(errors))
+                uncertain_writes(chunk)
+                not_attempted(len(items) - start - len(chunk))
+                return 1
+            failed = False
+            uncertain = []
+            for i, (item, value) in enumerate(chunk):
+                alias = "m%d" % i
+                messages = [str(e.get("message", "GraphQL error")) for e in errors
+                            if e["path"][0] == alias]
+                if messages:
+                    sys.stderr.write("board-set: not set: %s -> %s: %s\n" %
+                                     (item, value, "; ".join(messages)))
+                    failed = True
+                elif data.get(alias) is not None:
+                    print("%s -> %s" % (item, value))
+                else:
+                    uncertain.append((item, value))
+            if uncertain:
+                uncertain_writes(uncertain)
+            if errors or failed or uncertain:
+                not_attempted(len(items) - start - len(chunk))
+                return 1
+        else:
+            for item, value in chunk:
+                print("would set %s -> %s" % (item, value))
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except GraphQLError as e:
+        sys.stderr.write("board-set: %s\n" % e)
+        sys.exit(1)
+    except RuntimeError as e:
+        die(str(e))
