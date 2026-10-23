@@ -22,7 +22,7 @@ Why: in blind-graded side-by-side runs, Codex Sol at medium did best on specifie
 | Role | Model | Job |
 |---|---|---|
 | Coordinator | Opus, medium | Takes one work item from one brief; the start check compares each start in a track to this route. |
-| Lead | Opus, medium | Plans and briefs; never edits ([lead.md](lead.md)). |
+| Lead | Opus, medium | Briefs and delivers Ready work; never edits ([lead.md](lead.md)). |
 | PM | Opus, high | Intent checks and specs need critical conversation ([ADR-0001](adr/0001-product-manager.md)). |
 | Spec critic | Codex Sol, high | Cold spec review through `codex-run` challenges gaps before Ready. |
 | Strategist | Fable, xhigh | Second opinion on strategy and costs for maintainer decisions. |

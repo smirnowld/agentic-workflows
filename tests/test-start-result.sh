@@ -18,7 +18,7 @@ def run(data):
 def check(response, expected, event="PostToolUse", tool="mcp__ccd_session__start_session", **extra):
     data = dict(session_id="parent", cwd="/work", tool_name=tool,
                 hook_event_name=event, tool_response=response,
-                tool_input={"initiation":"manual"}, **extra)
+                tool_input={"initiation":"own_initiative"}, **extra)
     before = len(open(log).readlines()) if os.path.exists(log) else 0
     run(json.dumps(data))
     rows = [json.loads(line) for line in open(log)]

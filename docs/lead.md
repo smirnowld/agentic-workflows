@@ -81,4 +81,4 @@ The Today page ([today.md](today.md)) is built by a separate scheduled job, so i
 - What waking the lead costs: cache rebuilds after idle time.
 - The lead's own edits and shell writes: the target is zero.
 
-The retro also checks the PM measures in ADR-0001. Each [retro](../skills/retro/SKILL.md) looks at these. If the lead's cost per outcome isn't worth what it saves the maintainer, the retro proposes a different shape.
+ADR-0001 lists the PM's measures and the gate for a second track's lead. Each [retro](../skills/retro/SKILL.md) looks at these. If the lead's cost per outcome isn't worth what it saves the maintainer, the retro proposes a different shape.
