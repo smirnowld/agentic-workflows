@@ -2,13 +2,14 @@
 """Run one Codex job for a role from routing.json, non-interactively.
 
   codex-run --role implementer --kind KIND --cwd DIR --prompt-file FILE [--fallback]
+  codex-run --role spec-critic --cwd DIR --prompt-file FILE
   codex-run --role critical-reviewer[-strongest] --cwd DIR --prompt-file FILE
 
 The implementer's route is the kind's primary, or its fallback with --fallback;
 if that route is not the codex family, exit 2 (use the Agent tool instead).
 The (strongest) critical reviewer's route is its "codex" entry. The model and reasoning
 effort come from routing.json; the sandbox is workspace-write for the
-implementer and read-only for the critical reviewer. The final message goes to
+implementer and read-only for the critical reviewer and spec critic. The final message goes to
 a report file whose path is printed on stdout, also after a failure if the
 file exists (codex's own output goes to stderr). The role's instructions (the
 body of agents/ROLE.md) are prepended to the prompt file's content, and the
@@ -37,7 +38,7 @@ import time
 import tempfile
 
 SANDBOX = {"implementer": "workspace-write", "critical-reviewer": "read-only",
-           "critical-reviewer-strongest": "read-only"}
+           "critical-reviewer-strongest": "read-only", "spec-critic": "read-only"}
 
 
 def die(msg):
@@ -90,6 +91,8 @@ def find_route(routing, role, kind, fallback):
         if not isinstance(spec.get("codex"), dict):
             die("%s has no codex route in routing.json" % role)
         return spec["codex"]
+    if spec.get("family") == "codex" and role in SANDBOX:
+        return spec
     die("role %r does not run on codex" % role)
 
 

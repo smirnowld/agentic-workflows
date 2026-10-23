@@ -7,6 +7,9 @@
   "roles": {
     "coordinator": { "family": "claude", "model": "opus", "effort": "medium" },
     "lead": { "family": "claude", "model": "opus", "effort": "medium" },
+    "pm": { "family": "claude", "model": "opus", "effort": "high" },
+    "spec-critic": { "family": "codex", "model": "gpt-6.1-sol", "effort": "high" },
+    "strategist": { "family": "claude", "model": "fable", "effort": "xhigh" },
     "explorer": { "family": "claude", "model": "sonnet", "effort": "low" },
     "tester": { "family": "claude", "model": "sonnet", "effort": "low" },
     "reviewer": { "family": "claude", "model": "sonnet", "effort": "medium" },

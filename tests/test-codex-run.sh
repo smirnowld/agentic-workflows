@@ -55,6 +55,11 @@ echo "critical-reviewer-strongest: $(argv)"
 case $(argv) in *"-m gpt-6-astra -c model_reasoning_effort=\"xhigh\" -s read-only"*) ;; *) bad "critical-reviewer-strongest argv" ;; esac
 grep -q 'strongest critical reviewer' "$tmp/stdin" && grep -q 'RULES.md critical criteria' "$tmp/stdin" || bad "strongest body not prepended"
 
+"$tool" --role spec-critic --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1 || bad "spec-critic failed"
+case $(argv) in *"-m gpt-6.1-sol -c model_reasoning_effort=\"high\" -s read-only"*) ;; *) bad "spec-critic argv" ;; esac
+grep -q 'Read one spec cold' "$tmp/stdin" || bad "spec-critic body missing"
+grep -q '^name: spec-critic$' "$tmp/stdin" && bad "spec critic frontmatter in prompt"
+
 # A route that is not codex: exit 2 and codex is not run.
 rm -f "$tmp/argv"
 "$tool" --role implementer --kind symptom-bug --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>"$tmp/err"; rc=$?

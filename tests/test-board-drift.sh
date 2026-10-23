@@ -25,8 +25,8 @@ cat > "$tmp/items.json" <<ITEMS
  {"updatedAt":"$recent","status":{"name":"Done"},"content":{"__typename":"Issue","url":"$u/issues/2","title":"Properly done","state":"CLOSED","updatedAt":"$recent"}},
  {"updatedAt":"2020-01-01T00:00:00Z","status":{"name":"In progress"},"content":{"__typename":"Issue","url":"$u/issues/3","title":"Forgotten work","state":"OPEN","updatedAt":"2020-01-01T00:00:00Z"}},
  {"updatedAt":"$recent","status":{"name":"In progress"},"content":{"__typename":"Issue","url":"$u/issues/4","title":"Fresh work","state":"OPEN","updatedAt":"$recent"}},
- {"updatedAt":"$recent","status":{"name":"Todo"},"content":{"__typename":"Issue","url":"$u/issues/5","title":"Finished initiative","state":"OPEN","updatedAt":"$recent","subIssuesSummary":{"total":2,"completed":2}}},
- {"updatedAt":"$recent","status":{"name":"Todo"},"content":{"__typename":"Issue","url":"$u/issues/6","title":"Running initiative","state":"OPEN","updatedAt":"$recent","subIssuesSummary":{"total":2,"completed":1}}},
+ {"updatedAt":"$recent","status":{"name":"Todo"},"content":{"__typename":"Issue","url":"$u/issues/5","title":"Finished epic","state":"OPEN","updatedAt":"$recent","subIssuesSummary":{"total":2,"completed":2}}},
+ {"updatedAt":"$recent","status":{"name":"Todo"},"content":{"__typename":"Issue","url":"$u/issues/6","title":"Running epic","state":"OPEN","updatedAt":"$recent","subIssuesSummary":{"total":2,"completed":1}}},
  {"updatedAt":"$recent","status":null,"content":{}}
 ]}}}}}
 ITEMS
@@ -43,14 +43,53 @@ has() { echo "$out" | grep "\"kind\": \"$1\"" | grep -q "$2"; check "$1: $2" 0 $
 has closed-not-done "Closed but open on board"
 has stale "Forgotten work"
 has not-on-board "Loose pull request"
-has upkeep-due "Finished initiative"
+has upkeep-due "Finished epic"
 n=$(echo "$out" | wc -l | tr -d ' '); check "exactly four findings" 4 "$n"
 echo "$out" | python3 -c 'import sys,json
 for l in sys.stdin: assert set(json.loads(l))=={"kind","url","title","detail"}'; check "json fields" 0 $?
-python3 "$tool" ORG 1 --repo ORG/r | grep -q "^upkeep-due: Finished initiative"; check "plain lines" 0 $?
+python3 "$tool" ORG 1 --repo ORG/r | grep -q "^upkeep-due: Finished epic"; check "plain lines" 0 $?
 out=$(python3 "$tool" ORG 1 --stale-days 100000 --json); check "no repo, stale limit raised" 0 $?
 echo "$out" | grep -q '"stale"'; check "stale-days respected" 1 $?
 python3 "$tool" ORG >/dev/null 2>&1; check "missing number is an error" 2 $?
+# Idea is healthy unless a whole Phase iteration elapsed without issue or board activity.
+cp "$tmp/items.json" "$tmp/base-items.json"
+python3 - "$tmp/items.json" <<'PYIDEA'
+import json, sys
+from datetime import datetime, timedelta, timezone
+p = sys.argv[1]
+d = json.load(open(p))
+board = d['data']['organization']['projectV2']
+now = datetime.now(timezone.utc)
+start = now - timedelta(days=30)
+stamp = lambda t: t.isoformat()
+board['fields'] = {'nodes': [{'name':'Phase', 'configuration': {
+    'iterations':[{'startDate':(now+timedelta(days=2)).date().isoformat(),'duration':14}],
+    'completedIterations':[{'startDate':start.date().isoformat(),'duration':14}]}}]}
+for n, title, issue_days, board_days, state in (
+    (51,'Idea untouched',40,40,'OPEN'),
+    (52,'Idea issue triaged',1,40,'OPEN'),
+    (53,'Idea board triaged',40,1,'OPEN'),
+    (54,'Idea recent',1,1,'OPEN'),
+    (55,'Idea closed',40,40,'CLOSED'),
+    (56,'Idea within phase',20,20,'OPEN')):
+    board['items']['nodes'].append(dict(status={'name':'Idea'}, updatedAt=stamp(now-timedelta(days=board_days)),
+        content=dict(__typename='Issue',url='https://example.invalid/o/r/issues/'+str(n),title=title,state=state,
+                     updatedAt=stamp(now-timedelta(days=issue_days)))))
+json.dump(d,open(p,'w'))
+PYIDEA
+out=$(python3 "$tool" ORG 1 --json)
+has idea-untriaged "Idea untouched"
+for title in 'Idea issue triaged' 'Idea board triaged' 'Idea recent' 'Idea closed' 'Idea within phase'; do
+ echo "$out" | grep '"kind": "idea-untriaged"' | grep -q "$title"; check "not untriaged: $title" 1 $?
+done
+python3 - "$tmp/items.json" <<'PYIDEA'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); d['data']['organization']['projectV2'].pop('fields'); json.dump(d,open(p,'w'))
+PYIDEA
+out=$(python3 "$tool" ORG 1 --json 2>"$tmp/idea-err")
+echo "$out" | grep -q '"kind": "idea-untriaged"'; check "no inferred phase length without dates" 1 $?
+grep -q 'Idea phase age unavailable' "$tmp/idea-err"; check "missing phase dates reported" 0 $?
+mv "$tmp/base-items.json" "$tmp/items.json"
 # Closing an on-board issue tracks the PR; old open bot PRs need attention.
 python3 - "$tmp/prs.json" <<'PYTEST'
 import json, sys
@@ -120,12 +159,13 @@ FAKE_ITEMS="$tmp/wait.json" python3 "$tool" ORG 1 > "$tmp/plain"; grep -q "^wait
 # pagination: first page says more, second page ends
 cat > "$tmp/bin/gh" <<'GH'
 #!/bin/sh
+case "$*" in *"field=Status"*) ;; *) echo "wrong status field" >&2; exit 1 ;; esac
 n=$(cat "$FAKE_COUNT" 2>/dev/null || echo 0); echo $((n+1)) > "$FAKE_COUNT"
 if [ "$n" = 0 ]; then cat "$FAKE_PAGE1"; else cat "$FAKE_PAGE2"; fi
 GH
 export FAKE_COUNT="$tmp/count" FAKE_PAGE1="$tmp/p1.json" FAKE_PAGE2="$tmp/p2.json"
 cat > "$tmp/p1.json" <<P1
-{"data":{"organization":{"projectV2":{"items":{"pageInfo":{"hasNextPage":true,"endCursor":"c1"},"nodes":[
+{"data":{"organization":{"projectV2":{"fields":{"nodes":[{"name":"Phase","configuration":{"iterations":[],"completedIterations":[]}}]},"items":{"pageInfo":{"hasNextPage":true,"endCursor":"c1"},"nodes":[
  {"updatedAt":"$recent","status":{"name":"Todo"},"content":{"__typename":"Issue","url":"$u/issues/21","title":"Page one finished","state":"OPEN","updatedAt":"$recent","subIssuesSummary":{"total":1,"completed":1}}}
 ]}}}}}
 P1

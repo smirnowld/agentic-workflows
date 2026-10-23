@@ -7,6 +7,8 @@
               [--json]
 
 Findings:
+  idea-untriaged   an open Idea has no issue or board update across an entire
+                   elapsed iteration in the board's Phase iteration field
   closed-not-done  the issue or pull request is closed but its status is not done
   not-on-board     an open pull request in a given repository is not on the board
   bot-wait         a non-draft Dependabot pull request open for over three days
@@ -26,12 +28,23 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 ITEMS = """
 query($owner: String!, $number: Int!, $field: String!, $after: String) {
   %s(login: $owner) {
     projectV2(number: $number) {
+      fields(first: 100) {
+        nodes {
+          ... on ProjectV2IterationField {
+            name
+            configuration {
+              iterations { startDate duration }
+              completedIterations { startDate duration }
+            }
+          }
+        }
+      }
       items(first: 100, after: $after) {
         pageInfo { hasNextPage endCursor }
         nodes {
@@ -95,17 +108,21 @@ def gql(query, **vars):
 def board_items(owner, number, field):
     first_err = None
     for kind in ("organization", "user"):
-        items, after = [], None
+        items, phases, after = [], [], None
         try:
             while True:
                 d = gql(ITEMS % kind, owner=owner, number=number, field=field, after=after)
                 proj = (d.get(kind) or {}).get("projectV2")
                 if not proj:
                     raise RuntimeError("no such project")
+                for phase_field in (proj.get("fields") or {}).get("nodes") or []:
+                    if phase_field.get("name", "").strip().lower() == "phase":
+                        config = phase_field.get("configuration") or {}
+                        phases = config.get("iterations", []) + config.get("completedIterations", [])
                 page = proj["items"]
                 items += page["nodes"]
                 if not page["pageInfo"]["hasNextPage"]:
-                    return items
+                    return items, phases
                 after = page["pageInfo"]["endCursor"]
         except RuntimeError as e:
             if kind == "organization":
@@ -171,8 +188,17 @@ def main(argv):
     except ValueError:
         die("--stale-days must be a number")
     owner, number = pos[0], int(pos[1])
-    items = board_items(owner, number, flags["--status-field"])
+    items, phases = board_items(owner, number, flags["--status-field"])
     now = datetime.now(timezone.utc)
+    if not phases and any((it.get("status") or {}).get("name") == "Idea"
+                          and (it.get("content") or {}).get("state") == "OPEN" for it in items):
+        print("board-drift: Idea phase age unavailable; configure a Phase iteration field with dates", file=sys.stderr)
+    elapsed_phases = []
+    for phase in phases:
+        start = datetime.fromisoformat(phase["startDate"]).replace(tzinfo=timezone.utc)
+        end = start + timedelta(days=phase["duration"])
+        if end <= now:
+            elapsed_phases.append(start)
     found, on_board = [], set()
 
     def add(kind, c, detail):
@@ -186,6 +212,10 @@ def main(argv):
         status = (it.get("status") or {}).get("name")
         if c["state"] in ("CLOSED", "MERGED") and status != flags["--done"]:
             add("closed-not-done", c, "closed, but status is %s" % (status or "not set"))
+        if status == "Idea" and c["state"] == "OPEN" and elapsed_phases:
+            last = max(parse_time(t) for t in (it.get("updatedAt"), c.get("updatedAt")) if t)
+            if any(last < start for start in elapsed_phases):
+                add("idea-untriaged", c, "Idea unchanged through an elapsed Phase iteration: PM triage due")
         if status == flags["--in-progress"] and c["state"] == "OPEN":
             last = max(parse_time(t) for t in (it.get("updatedAt"), c.get("updatedAt")) if t)
             days = (now - last).total_seconds() / 86400

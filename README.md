@@ -18,7 +18,7 @@ Not goals: provider neutrality, cloud sessions (every token must be visible), mo
 ## How it's layered
 
 1. **Intent.** Vision, users, roadmap, the quality and design bar, and each track's delegation table ([docs/delegation.md](docs/delegation.md)). I decide; AI writes it down and keeps it consistent.
-2. **Management.** One lead per track ([docs/lead.md](docs/lead.md)). It turns intent into work, decides tactics within its delegated authority and brings me only what the table says to. It has no checkout to edit and keeps its state on the board.
+2. **Management.** One PM and one lead per track ([docs/lead.md](docs/lead.md)). The PM works with me on what to build; the lead delivers Ready work and brings me decisions outside the fence. Both keep their state on the board and have no checkout to edit.
 3. **Execution.** Roles: implementers, testers who use the product, and reviewers. Each runs on the model that measured best for it ([docs/routing.md](docs/routing.md)) and gets only its own context.
 4. **Controls.** A merge is the deploy. Rulesets, admission policies and RBAC; scoped identities, with secrets agents use but never see; budgets, an audit log, rollback. A lead starts no new work, except a fire, while too many of my steps or review requests hold up work already started ([docs/start-check.md](docs/start-check.md)).
 5. **Visibility.** The Today page ([docs/today.md](docs/today.md)): what needs me, what finished, what is stuck, with the board's drift ([bin/board-drift](bin/board-drift)).

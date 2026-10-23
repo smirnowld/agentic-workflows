@@ -16,7 +16,7 @@ echo "# track" > "$tmp/track/track.md"; echo "lead" > "$tmp/track/CLAUDE.md"
 agent() {
   effort=medium
   case "$1" in
-    *critical-reviewer-strongest) effort=xhigh ;;
+    *critical-reviewer-strongest|*strategist) effort=xhigh ;;
     *critical-reviewer) effort=high ;;
     *explorer) effort=low ;;
   esac
@@ -52,6 +52,11 @@ expect_agent "critical-reviewer-strongest opus" agentic-workflows:critical-revie
 expect_agent "critical-reviewer-strongest no model, file model" agentic-workflows:critical-reviewer-strongest "" allow
 expect_agent "reviewer no model, file model" agentic-workflows:reviewer "" allow
 expect_agent "critical-reviewer no model, file model" agentic-workflows:critical-reviewer "" allow
+expect_agent "strategist fable" agentic-workflows:strategist fable allow
+expect_agent "strategist wrong model" agentic-workflows:strategist opus deny
+expect_agent "spec critic Agent has no Claude route" agentic-workflows:spec-critic sonnet pass
+expect_agent "PM like lead is maintainer started" agentic-workflows:pm sonnet pass
+expect_agent "lead is maintainer started" agentic-workflows:lead sonnet pass
 expect_agent "explorer sonnet" agentic-workflows:explorer sonnet allow
 expect_agent "unrouted" Explore "" pass
 expect_agent "full model id" agentic-workflows:reviewer claude-sonnet-4-5 allow
@@ -61,6 +66,17 @@ out=$(agent agentic-workflows:implementer gpt-6.1-sol 2>&1); case $out in *"on s
 mkdir -p "$tmp/noagents"; cp "$root/routing.json" "$tmp/noagents/"
 : > "$log"; out=$(CLAUDE_PLUGIN_ROOT="$tmp/noagents" agent agentic-workflows:reviewer "" 2>&1)
 case $out in *'"permissionDecision": "deny"'*"names no model"*) ;; *) bad "unresolvable model not denied: $out" ;; esac
+
+mkdir -p "$tmp/track/pm" "$tmp/plain/pm"
+echo pm > "$tmp/track/pm/CLAUDE.md"; echo pm > "$tmp/plain/pm/CLAUDE.md"
+: > "$log"
+bash_in "$tmp/track/pm" "touch f"
+grep -q '"decision": "pm-write"' "$log" && grep -q '"role": "pm"' "$log" || bad "PM write not logged"
+: > "$log"
+bash_in "$tmp/track/pm" "git status"
+[ ! -s "$log" ] || bad "PM read logged as write"
+bash_in "$tmp/plain/pm" "touch f"
+[ ! -s "$log" ] || bad "PM without parent track logged"
 
 # Bash: only a lead's folder is looked at, writes are logged and never blocked.
 : > "$log"
@@ -184,6 +200,12 @@ for description in ("do specified: work", "unknown: work", ""):
     assert e["kind"] is None and "route_ok" not in e and e["decision"] == "allow"
 e = launch(subagent_type="agentic-workflows:reviewer", model="sonnet", effort="medium")
 assert e["decision"] == "allow"
+for effort in (None, "high", "medium"):
+    ti = dict(subagent_type="agentic-workflows:strategist", model="fable")
+    if effort is not None:
+        ti["effort"] = effort
+    e = launch(**ti)
+    assert e["decision"] == "deny" and "Set effort to xhigh" in e["reason"]
 for effort in (None, "low", "high"):
     e = launch(subagent_type="agentic-workflows:reviewer", model="sonnet", effort=effort)
     assert e["decision"] == "deny" and "Set effort to medium" in e["reason"]

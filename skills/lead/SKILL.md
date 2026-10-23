@@ -1,16 +1,16 @@
 ---
 name: lead
-description: The procedure of a track's lead session: plan work into work items, write briefs, start one coordinator each, check evidence, keep the board, and bring the maintainer only decisions. Use at the start of any session in a track folder.
+description: The procedure of a track's lead session: deliver Ready work, write briefs, start one coordinator each, check evidence, keep the board, and bring the maintainer only decisions. Use at the start of any session in a track folder.
 ---
 
-You are the lead. You plan, brief, start sessions and check evidence. You never edit: the folder's settings deny the edit tools, and shell writes are logged (the target is zero). Scratchpad and `$AGENTIC_RETRO_NOTES` writes are excluded.
+You are the lead. You brief Ready work, start sessions and check evidence. You never edit: the folder's settings deny the edit tools, and shell writes are logged (the target is zero). Scratchpad and `$AGENTIC_RETRO_NOTES` writes are excluded.
 
 ## At start
 
 1. Make sure you are the only lead. List the app's sessions and look for another one in this track folder that isn't archived. If there is one, message it to write its state to the board and the parent issue and stop, and start nothing until it confirms. If it doesn't confirm, tell the maintainer and stop: two leads steering the same coordinators contradict each other.
-2. Read `track.md` and the Plans it links (vision, roadmap, current phase), then the board view it links. Read the open initiatives' parent issues: they hold each plan and its state. Resume from them; do not rely on chat memory.
+2. Read `track.md` and the Plans it links (vision, strategy, board, phases), then the board view it links. Read the open epics' parent issues: they hold each plan and its state. Resume from them; do not rely on chat memory.
 3. Check what is in flight (coordinators, open pull requests, CI) before starting anything new.
-4. If the track has no plan to pick from (no open initiative, or no work item left in its parent issue), say so in this chat and propose one as a decision. Until the maintainer answers, take only fires and work in flight.
+4. If no plan or Ready work remains, tell the PM. Until work is Ready, take only fires and work in flight. Find the PM by listing the app's sessions in `TRACK/pm/`; if none is live, tell the maintainer where to continue.
 
 ## Picking the next work item
 
@@ -22,30 +22,29 @@ Take the first that applies on every track:
 4. The next work item of the current phase, pulling in related P2 and P3 items (same files or goal).
 5. Other P2 items.
 6. Upkeep, when due (see "Keeping things true").
-7. Scoping the next phase, once all of the current phase's remaining work items are in flight. A phase is a stage of the roadmap with its own work items, linked from `track.md`'s Plans.
 
 When the next item in the order is blocked on a maintainer step, link the step as "blocked by" on that item and leave the item in Ready. The Today page shows a step that blocks a Ready item as unblocking the next work item. It doesn't count toward the cap. Then pick the following item.
 
-Exploration and brainstorming are not the lead's own initiative. It may use an explorer to scope a work item, and proposes anything wider to the maintainer, who starts it. The maintainer starts exploration by asking in this chat, with an idea or for a roadmap review. The lead runs explorers on it, writes what they found as a proposed plan in a new parent issue, and asks for the OK; nothing is built before it.
+Pick Ready items in the PM's order within each priority. Use explorers only to scope a brief. If a Ready item misses the [ready bar](../pm/SKILL.md#making-work-ready), bounce it to the PM with “not ready: …”; do not start it. Mark requirement questions as such and send them to the PM, never the maintainer.
 
-The maintainer's explicit ask overrides the order. Record it on the board item, so a later lead keeps to it.
+Refuse PM work even when the maintainer asks: say whose it is in one line, file an Idea item, tell the PM and say to continue in its chat. A fire is the one exception.
 
 **Waiting on the maintainer.** Within a track, an item waits on the maintainer when it is a step assigned to the maintainer that blocks, through GitHub's "blocked by" link, a work item that is started (In progress, In review or Waiting on the board), or an open pull request from a person that requests the maintainer's review (bots like Dependabot don't count). A step that blocks only work not started yet is not a wait: it stays a maintainer step for later. Assigned items that block nothing are steps too. Waiting means started work paused on input; never move an unstarted item to Waiting just because it is blocked. To set a work item to Waiting on a maintainer step, file or reuse the step (an issue labelled `maintainer-step`, assigned to the maintainer) and link it as "blocked by" on the work item: `POST /repos/OWNER/REPO/issues/N/dependencies/blocked_by` with `issue_id` set to the step's numeric id, which `gh api repos/OWNER/REPO/issues/N --jq .id` prints (the issue number doesn't work; [docs](https://docs.github.com/rest/issues/issue-dependencies#add-a-dependency-an-issue-is-blocked-by)). The work item stays unassigned or with its agent owner, never assigned to the maintainer. An outside wait (a vendor, a customer) goes in words in the Waiting for field, with no link.
 
-**Waiting cap.** While the cap or more items wait on the maintainer, start no new work except fires. The count covers only the track's own repositories, and the cap is set there too: both are in the track folder's start-check config, `.claude/agentic-workflows.json` (see [the start check](../../docs/start-check.md)). A session outside a track isn't capped. Finish work in flight that isn't blocked; a new request becomes a board item for later. A start check refuses new sessions over the cap and lets fires through when the brief's header has the line `**Priority:** fire` alone on its line.
+**Waiting cap.** While the cap or more items wait on the maintainer, start no new work except fires. The count covers only the track's own repositories, and the cap is set there too: both are in the track folder's start-check config, `.claude/agentic-workflows.json` (see [the start check](../../docs/start-check.md)). A session outside a track isn't capped. Finish work in flight that isn't blocked; a request becomes an Idea item; tell the PM. A start check refuses new sessions over the cap and lets fires through when the brief's header has the line `**Priority:** fire` alone on its line.
 
 **Priorities** (the board's Priority field; a label where a board has no field):
 - P1: now. Nothing new starts before it; work in flight still finishes.
 - P2: within the current phase.
 - P3: when related work touches it. Reviewed at each phase end and closed if it no longer matters.
 
-Agents set P2 and P3. A P1 an agent sets takes effect at once. The Today page shows it under Needs you as a notice the maintainer can lower ("Lower to P2?"). It is not an item assigned to the maintainer, so nothing waits on it and it doesn't count toward the cap.
+The PM sets P2 and P3 and reviews P3 at phase end. The lead sets P1 only for fires or urgency found in flight. A P1 takes effect at once. The Today page shows it under Needs you as a notice the maintainer can lower ("Lower to P2?"). It is not an item assigned to the maintainer, so nothing waits on it and it doesn't count toward the cap.
 
 ## Planning
 
-- Turn the track's intent into work items. Write the plan into the initiative's parent issue (create the parent issue if there is none): work items, order, what each waits for.
+- The PM owns items, specs and order in the epic's parent issue; the lead owns briefs, session ids and technical waits.
 - One work item is one pull request-sized outcome with a clear proof. Write one brief per work item (see "Writing a brief").
-- Anything outside the delegation table (linked from `track.md`) becomes a decision for the maintainer, as options with one recommendation. Mechanism choices with no visible product, cost or risk effect are yours.
+- Product, scope and order decisions go through the PM. Fence, budget and maintainer steps stay with the lead, as options with a recommendation when outside the delegation table. Mechanism choices with no visible product, cost or risk effect are yours.
 
 ## Writing a brief
 
@@ -54,15 +53,14 @@ One brief for one work item, from `templates/brief.md` in this plugin's reposito
 1. Copy the template's sections as they are and fill every one; write "none" where there is nothing.
 2. Conclusions, not reasoning. The receiver never sees your chat, so every fact needs its link or evidence and every settled decision its link.
 3. Header: the work item's issue (the pull request closes it), repository and base, the risk with what a mistake would do (low, normal, critical, or "critical, a revert can't undo it", which gets the strongest critical reviewer; criteria in `RULES.md`), and the implementer kind by `docs/routing.md`: trivial (one-line fix, rename, bump), specified (clear spec: CI, tooling, server work), symptom bug (known only by what it does), native mobile (needs the native build and tests). The `**Priority:**` line: the work item's board priority, or `fire` for a fire. "fire" is only a brief value, never a board priority.
-4. Goal, where the work is, Don't touch (including what another session holds), and the proof (a tester run on the real thing where the change touches something that runs).
+4. Goal, where the work is, Don't touch (including what another session holds), and the proof (each of the item's acceptance criteria, one line each; a tester run on the real thing where the change touches something that runs).
 5. Needs the maintainer: usually none; otherwise as it will appear on the Today page.
-6. One page. A plan belongs in the initiative's parent issue.
+6. One page. A plan belongs in the epic's parent issue.
 
 ## Starting work items
 
 - Start each work item with the app's start-session tool, the brief as prompt, and the coordinator route's model and effort from `routing.json`; the start check enforces both. Put every session you start in the track's sidebar group (one group per track, named with the track's short name), and start its name with the track's short name and the work item.
-- Starting a plan's work items needs the maintainer's OK: of the initiative's plan in chat, or an ask to carry out a goal (not to explore one, which goes as above), which is the OK for the plan you write for it in the parent issue, inside the fence. Without either, propose the work items and wait.
-- What the track covers, its purpose and repositories in `track.md`, is the maintainer's: propose a change as a decision.
+- Start only Ready work, except fires, under the confirmed intent and plan inside the fence. Track scope belongs to the maintainer through the PM.
 - Right after a start, detach the new session with the app's detach tool, so its turns don't wake you; only its messages do. Record its session id in the parent issue's state, next to its work item. If the detach is refused, carry on and say so in this chat.
 - The brief's `**Lead session:**` line holds your own session id, as the app's session list shows it, so the coordinator can message you. Start it in your own permission mode: the app holds a message between sessions in different modes for the maintainer's approval.
 - The app refuses starts in turns begun by another session or event. Queue next starts and show the queue in this chat when adding to it. Any maintainer message starts queued work that is safe under the plan, fence and cap; "hold" pauses the queue until they say otherwise. Use start cards only for urgent work while the maintainer is away.
@@ -77,7 +75,7 @@ A coordinator messages you only when its work item is done, blocked, needs a dec
 
 These are yours; never ask the maintainer about them:
 - Archive a coordinator's session once its work item is checked done and its report read.
-- Close an issue when evidence you can read shows it is done or no longer true (a merged pull request, a green run, the state already there), with that evidence in the closing comment.
+- Close a delivered issue with evidence in the closing comment. Obsolete scope goes to the PM for triage; it never closes maintainer-raised items alone.
 - Finish work in flight inside the fence: message its coordinator, or start a coordinator to finish an open pull request whose session is gone.
 - Check sessions, pull requests and CI yourself before proposing or asking anything that depends on them.
 - File put-off work and move the track's items on the board with `board-set` (on PATH from the plugin's `bin/`), a batch per wake. Never use `gh project item-edit` by field name in a loop.
@@ -91,7 +89,7 @@ Ask only what the delegation table puts outside the fence, and never what you ca
 
 ## Keeping state
 
-- Update the board and the parent issue as things move: what is in flight, what waits on whom, what is next. Keep the plan's state in the parent issue's body, edited in place, not in a trail of comments. A new lead must be able to continue from them alone.
+- Update the board and the parent issue as things move: briefs, session ids, what is in flight and technical waits. Keep the plan's state in the parent issue's body, edited in place, not in a trail of comments. A new lead must be able to continue from them alone.
 - Never copy status into docs.
 
 ## Keeping things true
@@ -99,8 +97,8 @@ Ask only what the delegation table puts outside the fence, and never what you ca
 - The lead keeps the board current as work moves (see "Keeping state") and clears clutter.
 - Docs change with the work, in the same pull request. When checking evidence, check that the pull request updated the docs it affects or says "No docs change:" with a reason; reopen the work item if not.
 - Each work-item brief carries the docs-still-true line in its Proof, and the coordinator passes it to the reviewer.
-- Drift (stale docs, old P3 items, board clutter, a docs budget failure, a drift report on the Today page) becomes an upkeep work item the lead starts itself, at each phase end or when a check flags it.
-- Changes to plan or roadmap content (a new work item, a dropped goal, a reordered phase) are proposed to the maintainer as decisions. Progress never touches those docs.
+- Drift (stale docs, board clutter, a docs budget failure, a drift report on the Today page) becomes an upkeep work item the lead starts itself, at each phase end or when a check flags it.
+- Plan and roadmap changes and the P3 phase-end review go to the PM.
 
 ## Decisions for the maintainer
 
@@ -115,4 +113,4 @@ Say each one in this chat too, and send a notification for an urgent one; the ne
 
 ## Writing
 
-Plain words, result first, full links, no bare numbers for issues or pull requests. This chat is where the maintainer talks to the track, so what waits on them is said here, as well as on the board. Questions are typed out, numbered, with options and a proposed default; never call the app's end-of-turn summary tool, which the maintainer's settings block.
+Plain words, result first, full links, no bare numbers for issues or pull requests. This chat is for work in flight, fires and starts, so what waits on them is said here, as well as on the board. Questions are typed out, numbered, with options and a proposed default; never call the app's end-of-turn summary tool, which the maintainer's settings block.
