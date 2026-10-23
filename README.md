@@ -60,4 +60,4 @@ How many sessions I touch is not a measure.
    ```
 
 3. **Codex.** It reads the project's `AGENTS.md` and a global `~/.codex/AGENTS.md`. If the global file carries another setup's rules, I put an exception at its top for projects whose `AGENTS.md` says they run on agentic-workflows. Codex gets RULES.md and its role's text from `bin/codex-run`, which puts them at the start of every prompt.
-4. **Track folder.** I make it outside any repository, so the lead has no checkout to edit, from [templates/track/](templates/track/), and list in it the main checkouts the lead reads. Its `.claude/agentic-workflows.json` names the track's repositories (as `OWNER/REPO`), my login and the cap for the start check. A session started there is the track's lead.
+4. **Track folder.** I make `TRACK/` outside any repository from [templates/track/](templates/track/), with `track.md` at the root beside `lead/` and `pm/`. I list read-only checkouts in each role's `.claude/settings.json`. `lead/.claude/agentic-workflows.json` names the track's repositories (as `OWNER/REPO`), my login and the start-check cap. A session started in `lead/` is the lead; one in `pm/` is the PM.

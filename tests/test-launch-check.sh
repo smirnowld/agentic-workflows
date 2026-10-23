@@ -10,8 +10,8 @@ log="$tmp/log/launch-log.jsonl"
 fail=0
 bad() { echo "FAIL: $*"; fail=1; }
 
-mkdir "$tmp/track" "$tmp/plain" "$tmp/log"
-echo "# track" > "$tmp/track/track.md"; echo "lead" > "$tmp/track/CLAUDE.md"
+mkdir -p "$tmp/track/lead" "$tmp/plain" "$tmp/log"
+echo "# track" > "$tmp/track/track.md"; echo "lead" > "$tmp/track/lead/CLAUDE.md"
 
 agent() {
   effort=medium
@@ -67,7 +67,7 @@ mkdir -p "$tmp/noagents"; cp "$root/routing.json" "$tmp/noagents/"
 : > "$log"; out=$(CLAUDE_PLUGIN_ROOT="$tmp/noagents" agent agentic-workflows:reviewer "" 2>&1)
 case $out in *'"permissionDecision": "deny"'*"names no model"*) ;; *) bad "unresolvable model not denied: $out" ;; esac
 
-mkdir -p "$tmp/track/pm" "$tmp/plain/pm"
+mkdir -p "$tmp/track/pm" "$tmp/plain/pm" "$tmp/plain/lead"
 echo pm > "$tmp/track/pm/CLAUDE.md"; echo pm > "$tmp/plain/pm/CLAUDE.md"
 : > "$log"
 bash_in "$tmp/track/pm" "touch f"
@@ -78,23 +78,38 @@ bash_in "$tmp/track/pm" "git status"
 bash_in "$tmp/plain/pm" "touch f"
 [ ! -s "$log" ] || bad "PM without parent track logged"
 
-# Bash: only a lead's folder is looked at, writes are logged and never blocked.
+# Role detection requires a role folder, its instructions and the parent track.
+bash_in "$tmp/track" "touch f"
+[ ! -s "$log" ] || bad "bare track root was logged"
+echo root > "$tmp/track/CLAUDE.md"
+bash_in "$tmp/track" "touch f"
+[ ! -s "$log" ] || bad "track root with instructions was logged"
+rm "$tmp/track/CLAUDE.md"
+echo lead > "$tmp/plain/lead/CLAUDE.md"
+bash_in "$tmp/plain/lead" "touch f"
+[ ! -s "$log" ] || bad "lead without parent track logged"
+rm "$tmp/track/lead/CLAUDE.md"
+bash_in "$tmp/track/lead" "touch f"
+[ ! -s "$log" ] || bad "lead without instructions logged"
+echo lead > "$tmp/track/lead/CLAUDE.md"
+
+# Bash: lead writes are logged and never blocked.
 : > "$log"
-out=$(bash_in "$tmp/track" "git status | cat"); [ -z "$out" ] && [ ! -s "$log" ] || bad "read-only command was logged"
+out=$(bash_in "$tmp/track/lead" "git status | cat"); [ -z "$out" ] && [ ! -s "$log" ] || bad "read-only command was logged"
 for c in 'echo x > f' 'echo x >> f' 'ls | tee f' 'sed -i s/a/b/ f' 'mv a b' 'cp a b' 'rm a' 'mkdir d' 'touch f' 'git commit -m x' 'git push' 'git apply p' 'git -C /x commit -m x' 'git -c a=b push' 'sed --in-place s/a/b/ f' 'echo hi > out.txt' 'rm -f a'; do
   : > "$log"
-  out=$(bash_in "$tmp/track" "$c")
+  out=$(bash_in "$tmp/track/lead" "$c")
   [ -z "$out" ] || bad "'$c' was blocked or printed: $out"
-  grep -q '"decision": "lead-write"' "$log" || bad "'$c' not logged as a lead write"
+  grep -q '"decision": "lead-write"' "$log" && grep -q '"role": "lead"' "$log" || bad "'$c' not logged as a lead write"
 done
 : > "$log"
 bash_in "$tmp/plain" "rm a"; [ ! -s "$log" ] || bad "write outside a track folder was logged"
 : > "$log"
-bash_in "$tmp/track" "echo x 2>&1 | cat"; [ ! -s "$log" ] || bad "2>&1 counted as a write"
+bash_in "$tmp/track/lead" "echo x 2>&1 | cat"; [ ! -s "$log" ] || bad "2>&1 counted as a write"
 
 for c in 'echo x > /dev/null' 'ls 2> /dev/null | cat' 'echo "rm a > b"' "echo 'git commit'" 'git -C /x status' 'cat >> "$AGENTIC_RETRO_NOTES/2026-01-01.md" <<EOF' 'mkdir -p "$AGENTIC_RETRO_NOTES"'; do
   : > "$log"
-  bash_json "$tmp/track" "$c" >/dev/null
+  bash_json "$tmp/track/lead" "$c" >/dev/null
   [ ! -s "$log" ] || bad "'$c' wrongly logged as a lead write"
 done
 # Written as writes: sh -c arguments, commands after a heredoc with an apostrophe, .. escapes, git writes.
@@ -106,15 +121,15 @@ x
 	END
 touch f' 'cat >> "$AGENTIC_RETRO_NOTES/../x.md"' 'git tag v1' 'git stash' 'git stash pop' 'git checkout -- f'; do
   : > "$log"
-  bash_json "$tmp/track" "$c" >/dev/null
-  grep -q '"decision": "lead-write"' "$log" || bad "'$c' not logged as a lead write"
+  bash_json "$tmp/track/lead" "$c" >/dev/null
+  grep -q '"decision": "lead-write"' "$log" && grep -q '"role": "lead"' "$log" || bad "'$c' not logged as a lead write"
 done
 # Reads: a heredoc body's text, read-only git forms.
 for c in 'cat <<EOF
 rm a > b
 EOF' 'git tag' 'git tag -l' 'git tag --list "v*"' 'git stash list' 'git stash show' 'git -C /x tag -l'; do
   : > "$log"
-  bash_json "$tmp/track" "$c" >/dev/null
+  bash_json "$tmp/track/lead" "$c" >/dev/null
   [ ! -s "$log" ] || bad "'$c' wrongly logged as a lead write"
 done
 # Read destinations and listing options do not count; mutation flags still do.
@@ -128,7 +143,7 @@ touch f
 DATA
 SCRIPT"; do
   : > "$log"
-  bash_json "$tmp/track" "$c" >/dev/null
+  bash_json "$tmp/track/lead" "$c" >/dev/null
   [ ! -s "$log" ] || bad "'$c' wrongly logged as a lead write"
 done
 for c in "sed -i 'w public' /tmp/claude-session/input" 'sed -i -f public-script /tmp/claude-session/input' 'cp -t public /tmp/claude-session/source' 'cp --target-directory=public /tmp/claude-session/source' 'echo x > /dev/stdout.txt' 'echo x > /dev/fd/1x' 'git tag -d v1' 'git tag -f v1' 'git tag --sort=refname v9' 'git tag --format=x v8' 'git tag -i v7' 'git tag -l -d v1' 'true;git tag -l -d v1' 'sh <<EOF
@@ -141,8 +156,8 @@ EOF' 'dash <<EOF
 git tag v1
 EOF'; do
   : > "$log"
-  bash_json "$tmp/track" "$c" >/dev/null
-  grep -q '"decision": "lead-write"' "$log" || bad "'$c' not logged as a lead write"
+  bash_json "$tmp/track/lead" "$c" >/dev/null
+  grep -q '"decision": "lead-write"' "$log" && grep -q '"role": "lead"' "$log" || bad "'$c' not logged as a lead write"
 done
 # Scratchpad and retro-note destinations: redirects and utility writes are private.
 export AGENTIC_RETRO_NOTES="$tmp/notes" TMPDIR="$tmp/temp"
@@ -150,22 +165,22 @@ mkdir -p "$AGENTIC_RETRO_NOTES" "$TMPDIR"
 for target in "$tmp/notes/n.md" '/private/tmp/claude-session/project/s1/scratchpad/n.md' "$TMPDIR/claude-session/project/s1/scratchpad/n.md"; do
   for c in "echo x > '$target'" "echo x >> $target" "tee '$target'" "touch '$target'" "mkdir -p '$target'" "cp input '$target'" "sed -i s/a/b/ '$target'" "sed -i '' s/a/b/ '$target'" "rm -f '$target'"; do
     : > "$log"
-    bash_json "$tmp/track" "$c" >/dev/null
+    bash_json "$tmp/track/lead" "$c" >/dev/null
     [ ! -s "$log" ] || bad "private target was counted: $c"
   done
   for c in "echo x > '$target/../escape'" "touch '$target/../escape'" "echo x > '$target'; touch outside"; do
     : > "$log"
-    bash_json "$tmp/track" "$c" >/dev/null
+    bash_json "$tmp/track/lead" "$c" >/dev/null
     grep -q '"decision": "lead-write"' "$log" || bad "outside write was missed: $c"
   done
 done
 : > "$log"
-bash_json "$tmp/track" "echo x > '$tmp/notes-other/n.md'" >/dev/null
+bash_json "$tmp/track/lead" "echo x > '$tmp/notes-other/n.md'" >/dev/null
 grep -q '"decision": "lead-write"' "$log" || bad "retro sibling write was missed"
 
 for c in 'touch /tmp/claude-session/project/other/scratchpad/n.md' 'rm -rf /tmp/claude-501' 'cp -rt REPO /tmp/claude-session/project/s1/scratchpad/n.md' 'cp --target=REPO /tmp/claude-session/project/s1/scratchpad/n.md' 'git rm /tmp/claude-session/project/s1/scratchpad/n.md' 'git mv source /tmp/claude-session/project/s1/scratchpad/n.md'; do
   : > "$log"
-  bash_json "$tmp/track" "$c" >/dev/null
+  bash_json "$tmp/track/lead" "$c" >/dev/null
   grep -q '"decision": "lead-write"' "$log" || bad "write was missed: $c"
 done
 
@@ -213,7 +228,7 @@ PYTEST
 
 # The command text never reaches the log.
 : > "$log"
-bash_in "$tmp/track" "echo SECRETWORD > f" >/dev/null
+bash_in "$tmp/track/lead" "echo SECRETWORD > f" >/dev/null
 [ -s "$log" ] && ! grep -q SECRETWORD "$log" || bad "command text in the log (or no entry)"
 
 # Never fails closed: bad input and a broken routing.json allow and log "error".

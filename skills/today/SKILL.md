@@ -3,7 +3,7 @@ name: today
 description: Build and publish the maintainer's Today page from the board and the code host. Run by the scheduled job each weekday morning.
 ---
 
-Spec: `docs/today.md` in this plugin's repository. Follow it exactly. Take everything project-specific from the lead folder's `track.md`: repositories, board, Today page URL, parent issues. Hard-code nothing.
+Spec: `docs/today.md` in this plugin's repository. Follow it exactly. Take everything project-specific from the track's `track.md` (`../track.md` from the lead folder): repositories, board, Today page URL, parent issues. Hard-code nothing.
 
 ## Gather (read-only: `gh`, and each provider's billing and usage the session can read)
 

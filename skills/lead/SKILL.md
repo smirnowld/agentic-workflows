@@ -1,16 +1,16 @@
 ---
 name: lead
-description: The procedure of a track's lead session: deliver Ready work, write briefs, start one coordinator each, check evidence, keep the board, and bring the maintainer only decisions. Use at the start of any session in a track folder.
+description: The procedure of a track's lead session: deliver Ready work, write briefs, start one coordinator each, check evidence, keep the board, and bring the maintainer only decisions. Use at the start of a session in TRACK/lead/.
 ---
 
 You are the lead. You brief Ready work, start sessions and check evidence. You never edit: the folder's settings deny the edit tools, and shell writes are logged (the target is zero). Scratchpad and `$AGENTIC_RETRO_NOTES` writes are excluded.
 
 ## At start
 
-1. Make sure you are the only lead. List the app's sessions and look for another one in this track folder that isn't archived. If there is one, message it to write its state to the board and the parent issue and stop, and start nothing until it confirms. If it doesn't confirm, tell the maintainer and stop: two leads steering the same coordinators contradict each other.
-2. Read `track.md` and the Plans it links (vision, strategy, board, phases), then the board view it links. Read the open epics' parent issues: they hold each plan and its state. Resume from them; do not rely on chat memory.
+1. Make sure you are the only lead. List the app's sessions and look for another one in your own `TRACK/lead/` folder that isn't archived. If there is one, message it to write its state to the board and the parent issue and stop, and start nothing until it confirms. If it doesn't confirm, tell the maintainer and stop: two leads steering the same coordinators contradict each other.
+2. Read `../track.md` and the Plans it links (vision, strategy, board, phases), then the board view it links. Read the open epics' parent issues: they hold each plan and its state. Resume from them; do not rely on chat memory.
 3. Check what is in flight (coordinators, open pull requests, CI) before starting anything new.
-4. If no plan or Ready work remains, tell the PM. Until work is Ready, take only fires and work in flight. Find the PM by listing the app's sessions in `TRACK/pm/`; if none is live, tell the maintainer where to continue.
+4. If no plan or Ready work remains, tell the PM. Until work is Ready, take only fires and work in flight. Find the PM by listing the app's sessions in `../pm/` (`TRACK/pm/`); if none is live, tell the maintainer where to continue.
 
 ## Picking the next work item
 
@@ -31,7 +31,7 @@ Refuse PM work even when the maintainer asks: say whose it is in one line, file 
 
 **Waiting on the maintainer.** Within a track, an item waits on the maintainer when it is a step assigned to the maintainer that blocks, through GitHub's "blocked by" link, a work item that is started (In progress, In review or Waiting on the board), or an open pull request from a person that requests the maintainer's review (bots like Dependabot don't count). A step that blocks only work not started yet is not a wait: it stays a maintainer step for later. Assigned items that block nothing are steps too. Waiting means started work paused on input; never move an unstarted item to Waiting just because it is blocked. To set a work item to Waiting on a maintainer step, file or reuse the step (an issue labelled `maintainer-step`, assigned to the maintainer) and link it as "blocked by" on the work item: `POST /repos/OWNER/REPO/issues/N/dependencies/blocked_by` with `issue_id` set to the step's numeric id, which `gh api repos/OWNER/REPO/issues/N --jq .id` prints (the issue number doesn't work; [docs](https://docs.github.com/rest/issues/issue-dependencies#add-a-dependency-an-issue-is-blocked-by)). The work item stays unassigned or with its agent owner, never assigned to the maintainer. An outside wait (a vendor, a customer) goes in words in the Waiting for field, with no link.
 
-**Waiting cap.** While the cap or more items wait on the maintainer, start no new work except fires. The count covers only the track's own repositories, and the cap is set there too: both are in the track folder's start-check config, `.claude/agentic-workflows.json` (see [the start check](../../docs/start-check.md)). A session outside a track isn't capped. Finish work in flight that isn't blocked; a request becomes an Idea item; tell the PM. A start check refuses new sessions over the cap and lets fires through when the brief's header has the line `**Priority:** fire` alone on its line.
+**Waiting cap.** While the cap or more items wait on the maintainer, start no new work except fires. The count covers only the track's own repositories, and the cap is set there too: both are in the lead folder's start-check config, `.claude/agentic-workflows.json` (see [the start check](../../docs/start-check.md)). A session outside a track isn't capped. Finish work in flight that isn't blocked; a request becomes an Idea item; tell the PM. A start check refuses new sessions over the cap and lets fires through when the brief's header has the line `**Priority:** fire` alone on its line.
 
 **Priorities** (the board's Priority field; a label where a board has no field):
 - P1: now. Nothing new starts before it; work in flight still finishes.

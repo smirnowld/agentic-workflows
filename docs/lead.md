@@ -12,7 +12,7 @@ Each track has one lead at a time: a Claude session that delivers Ready work, ke
 | Coordinator | One work item from one brief, in its own worktree: coordinates, verifies, merges inside the fence | the brief and the work item's files |
 | Subagents | Implementer, tester, explorer, reviewers | only their own slice |
 
-A new lead first checks that no other lead is live in the track folder; if one is, it asks that lead to write its state to the board and stop before taking over.
+A new lead first checks that no other lead is live in `TRACK/lead/`; if one is, it asks that lead to write its state to the board and stop before taking over.
 
 The lead starts coordinators, not implementers. A coordinator runs its own subagents and sends back a few lines: what changed, the proof, what needs the maintainer. The lead's context grows by one short report per work item, not by the work itself.
 
@@ -52,13 +52,15 @@ The [lead skill](../skills/lead/SKILL.md) sets the order, the same on every trac
 
 ## The track folder
 
-The folder lives outside any repository, so the lead has no checkout to edit. A session started in it is that track's lead. Nothing needs typing: the folder's instructions and settings make it so.
+The track folder lives outside any repository. A session started in `TRACK/lead/` is the lead; one in `TRACK/pm/` is the PM. Each role has its own folder because a session reads the instructions of every folder above it; the root holds only `track.md`.
 
 ```
 TRACK/
-  CLAUDE.md               # "You are the lead of TRACK": loads the lead skill, reads track.md
-  .claude/settings.json   # denies the edit tools; turns on this plugin
-  track.md                # intent (ownership, scope, limits), vision, strategy, repositories, board and parent issue links
+  track.md                # intent, vision, strategy, repositories, board and parent issue links
+  lead/
+    CLAUDE.md             # loads the lead skill, reads ../track.md
+    .claude/settings.json # denies edit tools; turns on this plugin
+    .claude/agentic-workflows.json # repositories, login and start-check cap
   pm/
     CLAUDE.md             # loads the PM skill, reads ../track.md
     .claude/settings.json # denies edit tools; turns on this plugin

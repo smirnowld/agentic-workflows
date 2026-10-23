@@ -18,7 +18,8 @@ accepted too. The value must be exactly "fire": a template placeholder such as
 
 Config, per track: $AGENTIC_CONFIG if set, else
 $CLAUDE_PROJECT_DIR/.claude/agentic-workflows.json (the hook input's cwd when
-CLAUDE_PROJECT_DIR is unset). No file: not-configured, the start passes.
+CLAUDE_PROJECT_DIR is unset). The lead's config lives in
+TRACK/lead/.claude/agentic-workflows.json. No file: not-configured, the start passes.
   {"waiting": {"cap": 5, "maintainer": "LOGIN", "repos": ["OWNER/REPO"],
    "started": ["In progress", "In review", "Waiting"]}}   ("started" optional)
 

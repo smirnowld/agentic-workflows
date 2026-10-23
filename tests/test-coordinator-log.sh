@@ -13,7 +13,8 @@ from concurrent.futures import ThreadPoolExecutor
 hook, tmp = sys.argv[1], Path(sys.argv[2])
 repo = tmp / 'repo'; repo.mkdir()
 track = tmp / 'track'; track.mkdir()
-(track / 'track.md').touch(); (track / 'CLAUDE.md').touch()
+(track / 'track.md').touch()
+lead = track / 'lead'; lead.mkdir(); (lead / 'CLAUDE.md').touch()
 def git(*args):
     subprocess.run(['git','-C',str(repo),*args], check=True, capture_output=True)
 git('init','-b','main')
@@ -107,10 +108,10 @@ with ThreadPoolExecutor(max_workers=50) as pool:
     list(pool.map(read_parallel, range(50)))
 assert json.loads((log.parent / 'sessions' / 'parallel').read_text())['reads'] == 50
 assert log.read_text() == before
-assert call('Bash',{'command':'git commit -m test'}, session='lead', cwd=str(track))['decision'] == 'lead-write'
+assert call('Bash',{'command':'git commit -m test'}, session='lead', cwd=str(lead))['decision'] == 'lead-write'
 # Corrupt state cannot suppress a lead write; coordinator state recovers after one error.
 (log.parent / 'sessions' / 'lead').write_text('{')
-assert call('Bash',{'command':'git commit -m test'}, session='lead', cwd=str(track))['decision'] == 'lead-write'
+assert call('Bash',{'command':'git commit -m test'}, session='lead', cwd=str(lead))['decision'] == 'lead-write'
 state.write_text('{')
 assert call('Read',{})['decision'] == 'error'
 assert json.loads(state.read_text()) == {}

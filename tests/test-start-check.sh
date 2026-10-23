@@ -212,14 +212,14 @@ python3 -c 'import json,sys; d=json.loads(open(sys.argv[1]).read()); assert d["h
 
 # Per-track config: found through CLAUDE_PROJECT_DIR, else the input cwd; none: allow.
 setup 1 2 0
-mkdir -p "$tmp/proj/.claude" "$tmp/other"
-cp "$AGENTIC_CONFIG" "$tmp/proj/.claude/agentic-workflows.json"
+mkdir -p "$tmp/track/lead/.claude" "$tmp/other"
+cp "$AGENTIC_CONFIG" "$tmp/track/lead/.claude/agentic-workflows.json"
 unset AGENTIC_CONFIG
 cwdin() { python3 -c 'import json,sys; print(json.dumps({"tool_name":sys.argv[1],"cwd":sys.argv[2],"tool_input":{"prompt":"x"}}))' "$T" "$1"; }
-CLAUDE_PROJECT_DIR=$tmp/proj; export CLAUDE_PROJECT_DIR
+CLAUDE_PROJECT_DIR=$tmp/track/lead; export CLAUDE_PROJECT_DIR
 expect "config via CLAUDE_PROJECT_DIR" deny deny "$(cwdin "$tmp/other")"
 unset CLAUDE_PROJECT_DIR
-expect "config via input cwd" deny deny "$(cwdin "$tmp/proj")"
+expect "config via input cwd" deny deny "$(cwdin "$tmp/track/lead")"
 expect "no config in a plain directory" not-configured none "$(cwdin "$tmp/other")"
 expect "no config, no cwd" not-configured none "{\"tool_name\":\"$T\"}"
 AGENTIC_CONFIG="$tmp/config.json"; export AGENTIC_CONFIG
