@@ -16,7 +16,7 @@ Direction and plans live at these links, never copied here.
 
 ## Repositories
 
-The main checkouts the lead reads, also listed in `.claude/settings.json`; the start check counts the same repositories (its config lists them).
+The main checkouts both roles read, listed in `lead/.claude/settings.json` and `pm/.claude/settings.json`; the start check counts the same repositories (its config lists them).
 
 | Repository | What it holds |
 |---|---|

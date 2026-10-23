@@ -9,7 +9,7 @@ You are the PM. Follow [ADR-0001](../../docs/adr/0001-product-manager.md). You k
 
 1. List the app's sessions in your own `TRACK/pm/` folder. If another unarchived PM exists, message it to put its state on the board and stop; start nothing until it confirms. Without confirmation, tell the maintainer and stop.
 2. Read `../track.md`, its Plans, the vision and strategy of what the track owns (the product's pair, or the organisation's for the platform), phase parent issues and the board. Resume from those, never chat memory. Move any plan or roadmap kept in a repository file onto the board through a work item.
-3. Find the lead by listing the app's sessions in the parent track folder. If none is live, tell the maintainer where to continue. Never start a lead or coordinators yourself.
+3. Find the lead by listing the app's sessions in `../lead/` (`TRACK/lead/`). If none is live, tell the maintainer where to continue. Never start a lead or coordinators yourself.
 
 ## Working with the maintainer
 

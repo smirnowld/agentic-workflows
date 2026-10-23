@@ -38,7 +38,7 @@ Each track has one product manager (PM) at a time, beside its one lead. The PM w
 - The board is the interface. A direct message is rare: a requirement question, or a priority change that hits started work.
 - An item enters Ready only when its spec meets the ready bar: intent the maintainer confirmed, acceptance criteria, open questions answered or written as assumptions with a default, phase and priority set, and the spec critic's findings settled.
 - The lead may send an item back ("not ready: …"). A coordinator's requirement question goes to the PM through the lead, never to the maintainer; the PM answers from the spec and the recorded intent, or asks the maintainer in its own chat.
-- Each finds the other by listing the app's sessions in the other's folder. The PM has its own track folder (`TRACK/pm/`), with no checkout and the edit tools denied, like the lead's; a shared folder would trip the one-lead check. Both are long-lived and keep their state on the board; a fresh one starts from the board when the maintainer starts it.
+- Each finds the other by listing the app's sessions in the other's folder. The lead and PM have sibling folders (`TRACK/lead/` and `TRACK/pm/`) beside `track.md`, each with no checkout and edit tools denied. A session reads the instructions of every folder above it, and a shared folder would trip the one-lead check. Both are long-lived and keep their state on the board; a fresh one starts from the board when the maintainer starts it.
 
 ### What the PM decides alone
 

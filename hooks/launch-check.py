@@ -11,9 +11,9 @@ bare names included, are the user's or the project's own agents and pass.
 
 Edit/Write/MultiEdit/Bash: coordinator edits are logged; Read/Grep/Glob and
 read-only Bash calls increment the session read count in sessions/SESSION_ID.
-Bash: in a lead's track folder (cwd holds both track.md and CLAUDE.md), a
-command that writes is logged, never blocked. The same applies with role pm
-in TRACK/pm/, which holds CLAUDE.md and whose parent holds track.md.
+Bash: in TRACK/lead/ or TRACK/pm/, a command that writes is logged with
+role lead or pm, never blocked, when cwd holds CLAUDE.md and its parent
+holds track.md.
 
 Every Agent decision (allow, deny, pass), coordinator edit and lead write is appended as
 one JSON line to ${AGENTIC_LOG_DIR:-$HOME/.claude/agentic-workflows}/launch-log.jsonl.
@@ -291,14 +291,10 @@ def exclude_private_writes(cmd, data):
 
 def check_bash(data, entry):
     cwd = data.get("cwd") or ""
-    role = None
-    if os.path.isfile(os.path.join(cwd, "CLAUDE.md")):
-        if os.path.isfile(os.path.join(cwd, "track.md")):
-            role = "lead"
-        elif os.path.basename(os.path.normpath(cwd)) == "pm" and os.path.isfile(
-                os.path.join(cwd, "..", "track.md")):
-            role = "pm"
-    if role is None:
+    role = os.path.basename(os.path.normpath(cwd))
+    if (role not in ("lead", "pm")
+            or not os.path.isfile(os.path.join(cwd, "CLAUDE.md"))
+            or not os.path.isfile(os.path.join(cwd, "..", "track.md"))):
         return False
     cmd = str((data.get("tool_input") or {}).get("command") or "")
     code = code_of(exclude_private_writes(cmd, data))

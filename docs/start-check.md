@@ -24,7 +24,7 @@ The start check logs its own decision before the app acts. After the app acts, [
 
 ## The config file
 
-Per track: `.claude/agentic-workflows.json` in the track's project directory (`$CLAUDE_PROJECT_DIR`, or the working directory the hook is given when that is unset). `AGENTIC_CONFIG`, when set, names a file to use instead. The track template ships a starting copy, [templates/track/.claude/agentic-workflows.json](../templates/track/.claude/agentic-workflows.json); replace `LOGIN` and `OWNER/REPO` in the copy. The track folder is not a repository, so the real login stays in the local copy; the plugin's template holds placeholders only.
+Per track: `TRACK/lead/.claude/agentic-workflows.json` in the lead's folder (`$CLAUDE_PROJECT_DIR`, or the working directory the hook is given when that is unset). `AGENTIC_CONFIG`, when set, names a file to use instead. The track template ships a starting copy, [templates/track/lead/.claude/agentic-workflows.json](../templates/track/lead/.claude/agentic-workflows.json); replace `LOGIN` and `OWNER/REPO` in the copy. The track folder is not a repository, so the real login stays in the local copy; the plugin's template holds placeholders only.
 
 ```json
 {"waiting": {"cap": 5, "maintainer": "LOGIN", "repos": ["OWNER/REPO"],
