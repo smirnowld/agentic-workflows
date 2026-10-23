@@ -51,6 +51,28 @@ python3 "$tool" ORG 1 --repo ORG/r | grep -q "^upkeep-due: Finished initiative";
 out=$(python3 "$tool" ORG 1 --stale-days 100000 --json); check "no repo, stale limit raised" 0 $?
 echo "$out" | grep -q '"stale"'; check "stale-days respected" 1 $?
 python3 "$tool" ORG >/dev/null 2>&1; check "missing number is an error" 2 $?
+# Closing an on-board issue tracks the PR; old open bot PRs need attention.
+python3 - "$tmp/prs.json" <<'PYTEST'
+import json, sys
+from datetime import datetime, timedelta, timezone
+p = sys.argv[1]
+prs = json.load(open(p))
+nodes = prs['data']['repository']['pullRequests']['nodes']
+base = nodes[0]['url'].rsplit('/', 1)[0]
+nodes.append(dict(url=base+'/10', title='Closes tracked issue',
+                  closingIssuesReferences={'nodes':[{'url':base.replace('/pull','/issues')+'/4'}]}))
+for n, days, draft, login in ((11,4,False,'dependabot'), (12,2,False,'dependabot[bot]'),
+                               (13,4,True,'dependabot'), (14,4,False,'contributor')):
+    nodes.append(dict(url=base+'/'+str(n), title='Dependency '+str(n), isDraft=draft,
+                      author={'login':login}, createdAt=(datetime.now(timezone.utc)-timedelta(days=days)).isoformat()))
+json.dump(prs, open(p,'w'))
+PYTEST
+out=$(python3 "$tool" ORG 1 --repo ORG/r --json)
+echo "$out" | grep -q 'Closes tracked issue'; check "PR closing tracked issue is tracked" 1 $?
+has bot-wait "Dependency 11"
+for title in 'Dependency 12' 'Dependency 13' 'Dependency 14'; do
+ echo "$out" | grep '"kind": "bot-wait"' | grep -q "$title"; check "not bot-wait: $title" 1 $?
+done
 # options: another status field and other names for done and in progress
 cat > "$tmp/bin/gh" <<'GH'
 #!/bin/sh

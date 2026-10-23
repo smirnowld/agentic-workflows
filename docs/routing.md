@@ -6,7 +6,7 @@ Each role runs on the model that measured best for its job. [routing.json](../ro
 
 One implementer role, four kinds of task. The coordinator picks the kind from the brief and launches the primary model; after one failed round it relaunches with the fallback. Its Agent description starts with the kind and a colon (`specified: fix the runner label`); the log records the kind and whether the model matches that kind’s Claude route.
 
-Effort here is what the Codex routes pass. A Claude route runs at its agent file's effort (medium for the implementer), whatever the table says.
+The coordinator passes each route's `effort` explicitly. The launch check refuses a routed Claude launch with mismatched or omitted effort, as it does a model mismatch.
 
 | Kind (key in routing.json) | Examples | Primary | After a failed round |
 |---|---|---|---|

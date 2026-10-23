@@ -9,6 +9,7 @@
 Findings:
   closed-not-done  the issue or pull request is closed but its status is not done
   not-on-board     an open pull request in a given repository is not on the board
+  bot-wait         a non-draft Dependabot pull request open for over three days
   stale            an in-progress item has had no update for more than stale-days
   upkeep-due       an open issue on the board whose sub-issues are all closed
   waiting-unlinked an open issue in the waiting status with no open "blocked by"
@@ -62,7 +63,10 @@ query($owner: String!, $name: String!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequests(states: OPEN, first: 100, after: $after) {
       pageInfo { hasNextPage endCursor }
-      nodes { url title }
+      nodes {
+        url title createdAt isDraft author { login }
+        closingIssuesReferences(first: 100) { nodes { url } pageInfo { hasNextPage } }
+      }
     }
   }
 }"""
@@ -201,8 +205,13 @@ def main(argv):
             add("upkeep-due", c, "all %d sub-issues are closed: close it or plan the next phase" % total)
     for repo in repos:
         for pr in open_prs(repo):
-            if pr["url"] not in on_board:
+            closing = (pr.get("closingIssuesReferences") or {}).get("nodes") or []
+            if pr["url"] not in on_board and not any(i["url"] in on_board for i in closing):
                 add("not-on-board", pr, "open pull request in %s is not on the board" % repo)
+            if ((pr.get("author") or {}).get("login") in ("dependabot", "dependabot[bot]")
+                    and not pr.get("isDraft") and pr.get("createdAt")
+                    and (now - parse_time(pr["createdAt"])).total_seconds() > 3 * 86400):
+                add("bot-wait", pr, "Dependabot pull request awaits the maintainer for over three days")
     for f in found:
         if as_json:
             print(json.dumps(f))
