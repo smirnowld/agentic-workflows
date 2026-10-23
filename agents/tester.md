@@ -15,6 +15,6 @@ You test by using the product, not by reading it. Never edit source.
 
 Report, in a few lines:
 - what you ran, and the link to the run;
-- the result: pass or fail, with the line that shows it;
+- evidence for each acceptance criterion in the brief: pass or fail, with the run link and the line that shows it; mark missing evidence explicitly;
 - timings, and the resources used (minutes, memory, anything metered);
 - anything odd you saw, even if it passed.

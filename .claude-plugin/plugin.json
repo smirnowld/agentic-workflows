@@ -5,6 +5,8 @@
     "./agents/implementer.md",
     "./agents/tester.md",
     "./agents/explorer.md",
+    "./agents/spec-critic.md",
+    "./agents/strategist.md",
     "./agents/reviewer.md",
     "./agents/critical-reviewer.md",
     "./agents/critical-reviewer-strongest.md",

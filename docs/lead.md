@@ -1,19 +1,26 @@
 # The lead
 
-Each track has one lead at a time: a Claude session that turns the track's intent into work, keeps its board, and brings the maintainer only what the delegation table says to. It doesn't build anything itself.
+Each track has one lead at a time: a Claude session that delivers Ready work, keeps its board, and brings the maintainer only what the delegation table says to. It doesn't build anything itself.
 
 ## The chain
 
 | Who | Does | Holds |
 |---|---|---|
-| Maintainer | Sets direction, answers the decisions on the Today page | |
-| Lead | Plans, writes briefs, starts one session per work item, checks their evidence, keeps the board | the track brief, the board, short reports |
+| Maintainer | Sets direction, confirms intent, decides larger calls | |
+| PM | Ideas, specs, order, roadmap, acceptance after merge | the board, strategy, recorded intent |
+| Lead | Briefs Ready work, starts coordinators, checks evidence, keeps delivery state | briefs, session ids, technical waits |
 | Coordinator | One work item from one brief, in its own worktree: coordinates, verifies, merges inside the fence | the brief and the work item's files |
 | Subagents | Implementer, tester, explorer, reviewers | only their own slice |
 
 A new lead first checks that no other lead is live in the track folder; if one is, it asks that lead to write its state to the board and stop before taking over.
 
 The lead starts coordinators, not implementers. A coordinator runs its own subagents and sends back a few lines: what changed, the proof, what needs the maintainer. The lead's context grows by one short report per work item, not by the work itself.
+
+## The PM
+
+Each track has one PM beside its lead. The [PM skill](../skills/pm/SKILL.md) takes ideas through intent confirmation and a cold spec review into Ready, as [ADR-0001](adr/0001-product-manager.md) defines. Exploration starts with the maintainer's ask in the PM's chat; changes to plan or roadmap content that alter what a phase delivers or when it ends are proposed to the maintainer by the PM. It publishes the roadmap from the board and checks merged evidence against intent; acceptance belongs to whoever the intent check names.
+
+Each refuses the other's work even when asked: the lead files an Idea and tells the PM; the PM messages the lead. Both say where to continue; fires go to the lead. Each finds the other by listing the app's sessions in the other's folder. Requirement questions go through the lead to the PM, never to the maintainer. The PM keeps no notes files or auto-memory about the track.
 
 ## Talking to coordinators
 
@@ -27,13 +34,13 @@ App limits the lead works within:
 - A session in another permission mode than the sender holds its messages for the maintainer's approval, so the lead and its coordinators run in the same mode.
 - A detached session no longer shows as the lead's in the app's linked sessions; the ids in the parent issue are how the lead finds it.
 
-The lead's chat is where the maintainer talks to the track.
+The lead's chat is for work in flight, fires and the go for queued starts; the PM's chat is for what to build.
 
 ## What the lead does without asking
 
 Archiving finished sessions, closing issues that evidence shows are done, finishing work in flight inside the fence, checking sessions, pull requests and CI before asking, and keeping the board. It asks only what the delegation table puts outside the fence. A maintainer step comes with one block to copy, paste and run as it is, in the pull request body or the step's issue.
 
-When the track has no plan to pick from, the lead says so and proposes one. Exploration starts with the maintainer's ask in the lead's chat; the lead scopes it with explorers and returns a proposed plan in a parent issue.
+When the track has no Ready work to pick from, the lead tells the PM. Fence, budget and maintainer steps stay with the lead; product, scope and order go to the PM.
 
 ## Keeping the board
 
@@ -41,7 +48,7 @@ The lead moves board items with `board-set`, a batch per wake. It never runs `gh
 
 ## What the lead picks next
 
-The [lead skill](../skills/lead/SKILL.md) sets the order, the same on every track: fires, work in flight, P1 items, the current phase's next work package (with related P2 and P3 items), other P2 items, upkeep, then scoping the next phase. The maintainer's explicit ask overrides it. While the cap or more items wait on the maintainer, only fires start. The count covers the track's own repositories, and the cap is set in the track's start-check config ([start check](start-check.md)); a session outside a track isn't capped. Only a step that holds up started work counts as a wait. A step that blocks only unstarted work doesn't count; when it blocks the next item, the lead links it, the Today page shows it as the next step to take, and the lead picks the following item. Docs change with the work, and drift becomes an upkeep work item the lead starts itself; changes to plan or roadmap content are proposed to the maintainer as decisions.
+The [lead skill](../skills/lead/SKILL.md) sets the order, the same on every track: fires, work in flight, P1 items, Ready work in the PM's order, then upkeep. An item missing the ready bar goes back to the PM with “not ready: …”. The PM sets P2 and P3 and reviews P3 at phase end; the lead sets P1 only for fires or urgency found in flight. While the cap or more items wait on the maintainer, only fires start. The count covers the track's own repositories, and the cap is set in the track's start-check config ([start check](start-check.md)); a session outside a track isn't capped. Only a step that holds up started work counts as a wait. A step that blocks only unstarted work doesn't count; when it blocks the next item, the lead links it, the Today page shows it as the next step to take, and the lead picks the following item. Docs change with the work, and technical drift becomes an upkeep work item the lead starts itself.
 
 ## The track folder
 
@@ -51,16 +58,19 @@ The folder lives outside any repository, so the lead has no checkout to edit. A 
 TRACK/
   CLAUDE.md               # "You are the lead of TRACK": loads the lead skill, reads track.md
   .claude/settings.json   # denies the edit tools; turns on this plugin
-  track.md                # intent (scope, projects, limits), plans, repositories, links: delegation table, runbooks, board, parent issues
+  track.md                # intent (ownership, scope, limits), vision, strategy, repositories, board and parent issue links
+  pm/
+    CLAUDE.md             # loads the PM skill, reads ../track.md
+    .claude/settings.json # denies edit tools; turns on this plugin
 ```
 
-The track's repositories are added as read-only directories, the main checkouts at their main branches. The lead has no worktree. Its settings deny the edit tools, which the app enforces. A shell write is still possible, so the launch log counts the lead's writes from day one; the target is zero.
+The track's repositories are added as read-only directories, the main checkouts at their main branches. Neither the lead nor the PM has a worktree. Their settings deny the edit tools, which the app enforces. A shell write is still possible, so the launch log counts the lead's and PM's writes; the target is zero.
 
 [templates/track/](../templates/track/) holds a starting copy.
 
 ## How long a lead runs
 
-Not by the clock, and not by a budget. The lead writes its state to the board and the initiative's parent issue as it goes: what's in flight, what waits on whom, what's next. So it compacts like any other session and loses little, and work that runs into the next day just continues. A fresh lead starts only when the maintainer starts one, and it starts from the board.
+Not by the clock, and not by a budget. The lead writes its state to the board and the epic's parent issue as it goes: what's in flight, what waits on whom, what's next. So it compacts like any other session and loses little, and work that runs into the next day just continues. A fresh lead starts only when the maintainer starts one, and it starts from the board.
 
 The Today page ([today.md](today.md)) is built by a separate scheduled job, so it doesn't depend on the lead ending a day cleanly.
 
@@ -71,4 +81,4 @@ The Today page ([today.md](today.md)) is built by a separate scheduled job, so i
 - What waking the lead costs: cache rebuilds after idle time.
 - The lead's own edits and shell writes: the target is zero.
 
-Each [retro](../skills/retro/SKILL.md) looks at these. If the lead's cost per outcome isn't worth what it saves the maintainer, the retro proposes a different shape.
+The retro also checks the PM measures in ADR-0001. Each [retro](../skills/retro/SKILL.md) looks at these. If the lead's cost per outcome isn't worth what it saves the maintainer, the retro proposes a different shape.

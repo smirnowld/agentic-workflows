@@ -1,6 +1,6 @@
 # Brief: TITLE
 
-<!-- One work item for one coordinator, written by the lead. Conclusions, not reasoning: the receiver never needs the lead's chat. The one brief format; plans live in the initiative's parent issue. -->
+<!-- One work item for one coordinator, written by the lead. Conclusions, not reasoning: the receiver never needs the lead's chat. The one brief format; plans live in the epic's parent issue. -->
 
 **Work item:** LINK to its issue, which the pull request closes
 **Repository and base:** OWNER/REPO, from main
@@ -34,7 +34,7 @@ One or two sentences: the outcome, and how anyone can tell it's done.
 ## Proof
 
 <!-- What must be green or shown before merge. A tester run on the real thing where the change touches something that runs. -->
-- CHECK
+- ACCEPTANCE CRITERION: EVIDENCE REQUIRED (one line for each criterion on the item)
 - Review: the reviewer also says whether the docs are still true, and the pull request updates the docs it affects or says "No docs change:" with a reason.
 
 ## Needs the maintainer

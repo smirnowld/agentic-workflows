@@ -12,7 +12,8 @@ bare names included, are the user's or the project's own agents and pass.
 Edit/Write/MultiEdit/Bash: coordinator edits are logged; Read/Grep/Glob and
 read-only Bash calls increment the session read count in sessions/SESSION_ID.
 Bash: in a lead's track folder (cwd holds both track.md and CLAUDE.md), a
-command that writes is logged, never blocked.
+command that writes is logged, never blocked. The same applies with role pm
+in TRACK/pm/, which holds CLAUDE.md and whose parent holds track.md.
 
 Every Agent decision (allow, deny, pass), coordinator edit and lead write is appended as
 one JSON line to ${AGENTIC_LOG_DIR:-$HOME/.claude/agentic-workflows}/launch-log.jsonl.
@@ -152,7 +153,7 @@ def check_agent(data, entry):
     with open(os.path.join(plugin_root(), "routing.json")) as f:
         roles = json.load(f).get("roles", {})
     spec = roles.get(role)
-    allowed = claude_models(spec) if isinstance(spec, dict) and role != "lead" else []
+    allowed = claude_models(spec) if isinstance(spec, dict) and role not in ("lead", "pm") else []
     if not allowed:
         entry["decision"] = "pass"
         return None
@@ -290,7 +291,14 @@ def exclude_private_writes(cmd, data):
 
 def check_bash(data, entry):
     cwd = data.get("cwd") or ""
-    if not (os.path.isfile(os.path.join(cwd, "track.md")) and os.path.isfile(os.path.join(cwd, "CLAUDE.md"))):
+    role = None
+    if os.path.isfile(os.path.join(cwd, "CLAUDE.md")):
+        if os.path.isfile(os.path.join(cwd, "track.md")):
+            role = "lead"
+        elif os.path.basename(os.path.normpath(cwd)) == "pm" and os.path.isfile(
+                os.path.join(cwd, "..", "track.md")):
+            role = "pm"
+    if role is None:
         return False
     cmd = str((data.get("tool_input") or {}).get("command") or "")
     code = code_of(exclude_private_writes(cmd, data))
@@ -299,7 +307,7 @@ def check_bash(data, entry):
         kinds.append("git write")
     if not kinds:
         return False
-    entry.update(role="lead", decision="lead-write", detail=kinds)
+    entry.update(role=role, decision=role + "-write", detail=kinds)
     return True
 
 

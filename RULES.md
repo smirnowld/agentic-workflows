@@ -4,7 +4,7 @@ Every session in a project on this setup starts with these rules. The project's 
 
 Where a mechanism enforces a rule, the rule names it. The mechanism is what counts; the rule explains it. Every mechanism has a test that shows it fires, and one that fails open (lets everything through when it breaks) raises an alert rather than going quiet. Add a hook only for a mistake that has happened, and keep count of what it blocks and what it blocks wrongly.
 
-Three words recur. A **track** is one area of work, split by purpose rather than by host (CI, say), with its own lead and board. The **fence** is what agents may do on their own, set by the delegation table and enforced by CODEOWNERS, rulesets and access rights set outside the session. The **Today page** ([docs/today.md](docs/today.md)) is built each weekday morning: the state the lead starts from, and what needs the maintainer. What comes up later in the day is said in the lead's chat.
+A **track** is an area of work with its own lead, PM, board and budget. It owns a product or one of its verticals, or the platform or one of its parts (CI, say), and uses what other tracks own. Each piece of software has one owning track; one repository can hold parts owned by different tracks. A **board** is where a track’s work and status live (GitHub calls it a project). The **fence** is what agents may do on their own, set by the delegation table and enforced by CODEOWNERS, rulesets and access rights set outside the session. The **Today page** ([docs/today.md](docs/today.md)) is built each weekday morning: the state the lead starts from, and what needs the maintainer. What comes up later in the day is said in the lead's chat.
 
 ## Who decides
 
@@ -15,7 +15,7 @@ Three words recur. A **track** is one area of work, split by purpose rather than
 
 ## Sessions and roles
 
-- A track has one lead at a time ([docs/lead.md](docs/lead.md)). It plans, writes briefs, starts one session per work item and checks their evidence. It never edits; its folder's settings deny the edit tools.
+- A track has one PM and one lead ([docs/lead.md](docs/lead.md)). The PM owns ideas, specs and order; the lead briefs Ready work, starts coordinators and checks evidence. Neither edits; their folders deny edit tools. Each refuses the other's work, even when asked; fires go to the lead.
 - A coordinator takes one work item from one brief, in its own worktree. It coordinates subagents, checks their evidence, merges inside the fence and reports back in a few lines.
 - Each role's model comes from [routing.json](routing.json) ([docs/routing.md](docs/routing.md)). The coordinator passes the route's effort; the launch check refuses a routed Claude launch with a model or effort mismatch, including omitted effort. Codex uses the route's effort.
 - Use the shipped helpers (waiting, launching Codex, moving board items) rather than hand-written loops.
@@ -40,9 +40,9 @@ Three words recur. A **track** is one area of work, split by purpose rather than
 ## State and docs
 
 - Status lives on the board, in pull requests and in CI. It is computed from them, never copied into a doc.
-- A multi-session plan lives in its initiative's parent issue. The lead keeps its state there as it goes, so a compaction or a new lead loses nothing.
-- Work a session decides to put off becomes an item on the board: the lead files it before its session ends, and a coordinator names it in its report for the lead to file. The item is linked "blocked by" what it waits for, or, when that isn't an issue, has it written in "Waiting for". It sits in Backlog, or Ready when it is next in order, never in Waiting until it is started; "Waiting for" is cleared or updated when it starts. A deferral kept only in a transcript or a doc gets lost.
-- The board stays true without anyone having to remember. The board's own automations mark closed issues and merged pull requests Done. Any session may add an item (put-off work goes through the lead, as above) or close one it finished; only the track's lead moves the track's work between Ready, In progress, In review and Waiting. `board-drift`, shown on the Today page, lists what slips through.
+- A multi-session plan lives in its epic's parent issue: an epic groups related work items toward one outcome or feature, too large to do at once. The PM keeps items, specs and order there; the lead keeps briefs, session ids and technical waits.
+- Work a session decides to put off becomes an item on the board: the lead files it before its session ends, and a coordinator names it in its report for the lead to file. The item is linked "blocked by" what it waits for, or, when that isn't an issue, has it written in "Waiting for". It goes to the PM for triage in Idea, never in Waiting until it is started; "Waiting for" is cleared or updated when it starts. A deferral kept only in a transcript or a doc gets lost.
+- The board stays true without anyone having to remember. The board's own automations mark closed issues and merged pull requests Done. Any session may add an item (put-off work goes through the lead, as above) or close one it finished; ideas enter Idea; the PM moves items through Backlog into Ready, the lead from Ready on. `board-drift`, shown on the Today page, lists what slips through.
 - Docs state what is true now; git history keeps the rest. Update a doc in place rather than adding one.
 
 ## Writing for the maintainer
