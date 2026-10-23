@@ -16,7 +16,7 @@ echo "# track" > "$tmp/track/track.md"; echo "lead" > "$tmp/track/lead/CLAUDE.md
 agent() {
   effort=medium
   case "$1" in
-    *critical-reviewer-strongest|*strategist) effort=xhigh ;;
+    *critical-reviewer-strongest) effort=xhigh ;;
     *critical-reviewer) effort=high ;;
     *explorer) effort=low ;;
   esac
@@ -52,8 +52,7 @@ expect_agent "critical-reviewer-strongest opus" agentic-workflows:critical-revie
 expect_agent "critical-reviewer-strongest no model, file model" agentic-workflows:critical-reviewer-strongest "" allow
 expect_agent "reviewer no model, file model" agentic-workflows:reviewer "" allow
 expect_agent "critical-reviewer no model, file model" agentic-workflows:critical-reviewer "" allow
-expect_agent "strategist fable" agentic-workflows:strategist fable allow
-expect_agent "strategist wrong model" agentic-workflows:strategist opus deny
+expect_agent "strategist Agent has no Claude route" agentic-workflows:strategist fable pass
 expect_agent "spec critic Agent has no Claude route" agentic-workflows:spec-critic sonnet pass
 expect_agent "PM like lead is maintainer started" agentic-workflows:pm sonnet pass
 expect_agent "lead is maintainer started" agentic-workflows:lead sonnet pass
@@ -216,7 +215,7 @@ for description in ("do specified: work", "unknown: work", ""):
 e = launch(subagent_type="agentic-workflows:reviewer", model="sonnet", effort="medium")
 assert e["decision"] == "allow"
 for effort in (None, "high", "medium"):
-    ti = dict(subagent_type="agentic-workflows:strategist", model="fable")
+    ti = dict(subagent_type="agentic-workflows:critical-reviewer-strongest", model="fable")
     if effort is not None:
         ti["effort"] = effort
     e = launch(**ti)

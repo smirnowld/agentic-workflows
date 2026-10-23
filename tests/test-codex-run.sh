@@ -60,6 +60,10 @@ case $(argv) in *"-m gpt-6.1-sol -c model_reasoning_effort=\"high\" -s read-only
 grep -q 'Read one spec cold' "$tmp/stdin" || bad "spec-critic body missing"
 grep -q '^name: spec-critic$' "$tmp/stdin" && bad "spec critic frontmatter in prompt"
 
+"$tool" --role strategist --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1 || bad "strategist failed"
+case $(argv) in *"-m gpt-6.1-sol -c model_reasoning_effort=\"xhigh\" -s read-only"*) ;; *) bad "strategist argv" ;; esac
+grep -q 'best rival plan' "$tmp/stdin" || bad "strategist body missing"
+
 # A route that is not codex: exit 2 and codex is not run.
 rm -f "$tmp/argv"
 "$tool" --role implementer --kind symptom-bug --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>"$tmp/err"; rc=$?

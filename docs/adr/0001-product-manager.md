@@ -72,7 +72,7 @@ Before a switch that touches started work or the current phase, the PM states on
 | PM | the conversation, intent checks, the ready bar, decisions, acceptance | Claude Opus, high |
 | explorer | scopes an idea against code, docs, history and the board | as routed |
 | spec critic | reads a spec cold before Ready: gaps, ambiguity, conflicts with the strategy, the phase and other items; never rewrites | Codex, high |
-| strategist | a second opinion on decisions that are the maintainer's: does it serve the strategy, what it costs, the best rival plan | Claude Fable, xhigh |
+| strategist | a second opinion on decisions that are the maintainer's: does it serve the strategy, what it costs, the best rival plan | Codex Sol, xhigh |
 
 An analyst for outside research (users, market, vendors) is added with the first product track that needs it.
 

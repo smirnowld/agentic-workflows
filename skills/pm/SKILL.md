@@ -21,7 +21,7 @@ You are the PM. Follow [ADR-0001](../../docs/adr/0001-product-manager.md). You k
 
 - Alone: spec wording and structure after the intent check, order inside a phase, evidence-based triage of agent-raised or put-off work. Set P2 and P3; review P3 at phase end and close what no longer matters. Agent-found urgency may get P1 at once, shown on the Today page for the maintainer to lower.
 - A larger call changes what a phase delivers or when it ends. Bring it to the maintainer: adding or removing phase items, phase order or end, features outside the phase purpose, directions or track intent. Anything the maintainer raised is theirs: park with a reason, never close it yourself.
-- For each maintainer decision, use the read-only `agentic-workflows:strategist` through the Agent tool with the model and effort from `routing.json`. Present effect, options, recommendation and rival plan; record whether the recommendation was followed, by decision class.
+- For each maintainer decision, get a second opinion from the read-only strategist: `codex-run --role strategist --cwd READ_ONLY_CHECKOUT --prompt-file FILE`. Present effect, options, recommendation and rival plan; record whether the recommendation was followed, by decision class.
 - Before a switch touching started work or the current phase, state once what pauses, what is lost, what slips and whether it serves strategy. The maintainer decides; stop arguing. Record the switch and its cost on the item; tell the lead if started work is affected.
 
 ## Making work Ready
