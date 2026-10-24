@@ -26,15 +26,21 @@ models = {'first': dict(inputTokens=20, cacheCreationInputTokens=4, cacheReadInp
           'second': dict(inputTokens=30, cacheCreationInputTokens=5, cacheReadInputTokens=7, outputTokens=9)}
 summed = dict(input_tokens=50, cache_creation_input_tokens=9, cache_read_input_tokens=13, output_tokens=17)
 assert counts(dict(modelUsage=models, usage=usage)) == summed
-for invalid in (None, [], {}, {'model': None}, {'model': dict(inputTokens=True,
-        cacheCreationInputTokens=-1, cacheReadInputTokens='5', outputTokens=1.5)}):
+for invalid in (None, [], {}):
     assert counts(dict(modelUsage=invalid, usage=usage)) == usage
 assert counts(dict(usage=usage)) == usage
 partial = {'valid': dict(inputTokens=0, outputTokens=2),
            'invalid': dict(inputTokens=False, cacheCreationInputTokens=-1, cacheReadInputTokens='5'),
            'other': []}
-assert counts(dict(modelUsage=partial, usage=usage)) == dict(input_tokens=0,
-    cache_creation_input_tokens=None, cache_read_input_tokens=None, output_tokens=2)
+unknown = dict.fromkeys(usage)
+assert counts(dict(modelUsage=partial, usage=usage)) == unknown
+del partial['other']
+assert counts(dict(modelUsage=partial, usage=usage)) == unknown
+partial['invalid']['inputTokens'] = 3
+assert counts(dict(modelUsage=partial, usage=usage)) == dict(unknown, input_tokens=3)
+for invalid in ({'model': None}, {'model': dict(inputTokens=True,
+        cacheCreationInputTokens=-1, cacheReadInputTokens='5', outputTokens=1.5)}):
+    assert counts(dict(modelUsage=invalid, usage=usage)) == unknown
 assert all(value is None for value in counts({}).values())
 print('designer-run token counts: ok', flush=True)
 # Partial process listings still protect existing pids and find run markers.
@@ -64,6 +70,7 @@ with tempfile.TemporaryDirectory() as temporary:
     out, publish = base / 'out', base / 'publish'
     out.mkdir()
     (out / 'sub').mkdir()
+    (out / '.claude/.cc-writes').mkdir(parents=True)
     (out / 'sub/page').write_text('page')
     outside = base / 'outside'
     outside.write_text('untouched')
@@ -71,26 +78,58 @@ with tempfile.TemporaryDirectory() as temporary:
     (out / 'folder-link').symlink_to(base, target_is_directory=True)
     os.link(outside, out / 'hardlink')
     os.mkfifo(out / 'fifo')
-    (out / 'unreadable').mkdir()
-    (out / 'unreadable/hidden').write_text('hidden')
-    (out / 'unreadable').chmod(0o300)
+    (out / 'unreadable').write_text('hidden')
+    (out / 'unreadable').chmod(0o000)
+    # A folder the walk can't list is skipped and the walk goes on.
+    (out / 'locked').mkdir()
+    (out / 'locked/hidden').write_text('hidden')
+    (out / 'locked').chmod(0o300)
+    (out / 'zz').mkdir()
+    (out / 'zz/after').write_text('after')
     try:
         warning = io.StringIO()
         with contextlib.redirect_stderr(warning):
-            assert launcher['copy_output'](str(out), str(publish)) == 5
-        assert 'warning: skipped 5' in warning.getvalue()
-        assert sorted(str(p.relative_to(publish)) for p in publish.rglob('*')) == ['sub', 'sub/page']
+            assert launcher['copy_output'](str(out), str(publish)) == (True, 6)
+        assert 'warning: skipped 6' in warning.getvalue()
+        assert sorted(str(p.relative_to(publish)) for p in publish.rglob('*')) == ['sub', 'sub/page', 'zz', 'zz/after']
         assert (publish / 'sub/page').read_text() == 'page'
         assert outside.read_text() == 'untouched' and outside.stat().st_nlink == 2
-        assert sorted(p.name for p in out.iterdir()) == ['fifo','folder-link','hardlink','link','sub','unreadable']
+        assert sorted(p.name for p in out.iterdir()) == ['.claude','fifo','folder-link','hardlink','link','locked','sub','unreadable','zz']
     finally:
         (out / 'unreadable').chmod(0o700)
-    assert (out / 'unreadable/hidden').read_text() == 'hidden'
+        (out / 'locked').chmod(0o700)
+    assert (out / 'unreadable').read_text() == 'hidden'
     clean = base / 'clean'
     clean.mkdir()
     with contextlib.redirect_stderr(io.StringIO()) as warning:
-        assert launcher['copy_output'](str(clean), str(base / 'clean-publish')) == 0
+        assert launcher['copy_output'](str(clean), str(base / 'clean-publish')) == (True, 0)
     assert not warning.getvalue()
+    with contextlib.redirect_stderr(io.StringIO()):
+        assert launcher['copy_output'](str(out), str(publish)) == (False, 1)
+    assert (publish / 'sub/page').read_text() == 'page'
+    def broken_write(source, output):
+        output.write(b'partial')
+        raise RuntimeError('write failed')
+    failed = base / 'failed-publish'
+    with patch('shutil.copyfileobj', side_effect=broken_write), contextlib.redirect_stderr(io.StringIO()):
+        assert launcher['copy_output'](str(publish), str(failed)) == (True, 2)
+    assert not list(failed.iterdir())
+    with patch('os.fwalk', side_effect=RecursionError), contextlib.redirect_stderr(io.StringIO()):
+        assert launcher['copy_output'](str(out), str(base / 'walk-publish')) == (True, 1)
+# Hidden ancestors are refused before any launch or process scan.
+with tempfile.TemporaryDirectory() as temporary:
+    hidden = Path(temporary) / '.private'
+    hidden.mkdir()
+    source = hidden / 'style.md'
+    source.write_text('style')
+    with patch.object(sys, 'argv', ['designer-run', '--prompt-file', 'unused', '--read', str(source)]), contextlib.redirect_stderr(io.StringIO()) as error:
+        try:
+            launcher['main']()
+        except SystemExit as exit:
+            assert exit.code == 2
+        else:
+            raise AssertionError('hidden ancestor accepted')
+    assert len(error.getvalue().splitlines()) == 1
 print('designer-run helpers: ok', flush=True)
 with tempfile.TemporaryDirectory() as temporary:
     tmp = Path(temporary).resolve()
@@ -106,10 +145,18 @@ if sys.argv[1:] == ['--help']:
     flags = ['--restricted', '--strict-mcp-config', '--tools', '--settings']
     print(' '.join(f for f in flags if f != config.get('MISSING_FLAG')) + (' --permission-mode dontAsk default' if not config.get('NO_DONTASK') else ' --permission-mode default'))
     Path(config['RECORD'] + '-help').write_text(json.dumps(dict(os.environ)))
+    if config.get('SWAP_SOURCE'):
+        Path(config['SWAP_SOURCE']).unlink()
+        Path(config['SWAP_SOURCE']).symlink_to(config['SWAP_TARGET'])
     if config.get('LAUNCH_ERROR'):
         Path(__file__).chmod(0o644)
     sys.exit(0)
 Path(config['RECORD']).write_text(json.dumps({'argv':sys.argv[1:],'cwd':os.getcwd(),'stdin':sys.stdin.read(),'env':dict(os.environ),'temp_exists':Path(os.environ['CLAUDE_CODE_TMPDIR']).is_dir()}))
+if config.get('PUBLISH_RACE'):
+    Path(str(Path.cwd()) + '-publish').mkdir()
+if config.get('BAD_RESULT'):
+    print('{}')
+    sys.exit(0)
 if config.get('LINKS'):
     out = Path.cwd()
     (out / 'symlink').symlink_to(config['LINKS'])
@@ -118,9 +165,8 @@ if config.get('LINKS'):
     os.mkfifo(out / 'fifo')
     (out / 'sub').mkdir()
     (out / 'sub/page.html').write_text('page')
-    (out / 'unreadable').mkdir()
-    (out / 'unreadable/hidden').write_text('hidden')
-    (out / 'unreadable').chmod(0o300)
+    (out / 'unreadable').write_text('hidden')
+    (out / 'unreadable').chmod(0o000)
 if config.get('HOLD'):
     time.sleep(300)
 if config.get('BACKGROUND'):
@@ -153,10 +199,10 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
     tool = str(root / 'bin/designer-run')
     def configure(extra=None):
         (tmp / 'config').write_text(json.dumps(dict(RECORD=str(tmp / 'record'), **(extra or {}))))
-    def run(*args, extra=None):
+    def run(*args, extra=None, cwd=None):
         configure(extra)
         before = len(logs())
-        result = subprocess.run([tool, '--prompt-file', str(prompt), *args], env=env, capture_output=True, text=True)
+        result = subprocess.run([tool, '--prompt-file', str(prompt), *args], env=env, capture_output=True, text=True, cwd=cwd)
         added = logs()[before:]
         assert [e['decision'] for e in added] in ([], ['launch', 'finished']), added
         return result
@@ -178,11 +224,12 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
     recorded = json.loads((tmp / 'record').read_text())
     assert recorded['cwd'] == str(out)
     settings = json.loads(recorded['argv'][recorded['argv'].index('--settings') + 1])
-    expected = {'sandbox': {
+    expected = {'permissions':{'blockReadsOutsideWorkingDirectories':True}, 'sandbox': {
         'enabled':True, 'failIfUnavailable':True, 'allowUnsandboxedCommands':False,
         'autoAllowBashIfSandboxed':True, 'network':{'allowedDomains':[]},
         'filesystem':{'denyRead':[path for path in ('~','/Users','/home','/tmp','/private/tmp',
-            '/private/var/folders','/Volumes','/mnt','/media') if os.path.lexists(os.path.expanduser(path))]
+            '/var/tmp','/private/var/tmp','/opt/homebrew/etc','/opt/homebrew/var',
+            '/usr/local/etc','/usr/local/var','/private/var/folders','/Volumes','/mnt','/media') if os.path.lexists(os.path.expanduser(path))]
             + [str(tmp / 'claude-config')],
             'allowRead':[str(out),recorded['env']['CLAUDE_CODE_TMPDIR'],'~/Library/Caches/ms-playwright','~/.cache/ms-playwright'],
             'denyWrite':['/tmp/claude','/private/tmp/claude','~/.npm','~/.claude/debug']},
@@ -229,6 +276,18 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
     assert [entries[1][k] for k in ('input_tokens','cache_creation_input_tokens','cache_read_input_tokens','output_tokens')] == [12,3,5,7]
     assert run('--out', str(fresh()), extra={'FAKE_MODEL_USAGE':models}).returncode == 0
     assert {key:logs()[-1][key] for key in summed} == summed
+    with patch.dict(env, CLAUDE_CONFIG_DIR=''):
+        empty_out = fresh()
+        empty_out.mkdir()
+        assert run('--out', str(empty_out), cwd=empty_out).returncode == 0
+        record = json.loads((tmp / 'record').read_text())
+        empty_settings = json.loads(record['argv'][record['argv'].index('--settings') + 1])
+        assert empty_settings['sandbox']['filesystem']['denyRead'] == expected['sandbox']['filesystem']['denyRead'][:-1]
+    result = run('--out', str(fresh()), extra={'PUBLISH_RACE':True})
+    assert result.returncode == 0 and len(result.stdout.splitlines()) == 1, result.stderr
+    assert 'publish' not in logs()[-1] and logs()[-1]['skipped'] == 1
+    result = run('--out', str(fresh()), extra={'BAD_RESULT':True})
+    assert result.returncode == 2 and not result.stdout
     assert run('--fallback').returncode == 0
     recorded = json.loads((tmp / 'record').read_text())
     assert recorded['argv'][recorded['argv'].index('--model') + 1] == 'fable'
@@ -265,11 +324,18 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
     symlink.symlink_to(source)
     hidden = tmp / '.hidden'
     hidden.write_text('private')
+    hidden_folder = tmp / '.private'
+    hidden_folder.mkdir()
+    (hidden_folder / 'style.md').write_text('private')
     other = tmp / 'other'
     other.mkdir()
     (other / source.name).write_text('other style')
-    for files in ((str(symlink),), (str(hidden),), (str(other),), (str(tmp / 'missing'),), (str(source), str(other / source.name))):
+    for files in ((str(symlink),), (str(hidden),), (str(hidden_folder / 'style.md'),), (str(other),), (str(tmp / 'missing'),), (str(source), str(other / source.name))):
         refused('--out', str(fresh()), *[arg for file in files for arg in ('--read', file)])
+    swapped = tmp / 'swapped.md'
+    swapped.write_text('style')
+    refused('--out', str(fresh()), '--read', str(swapped),
+            extra={'SWAP_SOURCE':str(swapped), 'SWAP_TARGET':str(hidden)})
     repo = tmp / 'product'
     subprocess.run(['git','init','-q',str(repo)], check=True)
     before = len(logs())
@@ -326,13 +392,13 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
         assert sorted(p.name for p in links_out.iterdir()) == ['fifo','folder-link','hardlink','sub','symlink','unreadable']
         assert (links_out / 'symlink').is_symlink() and (links_out / 'folder-link').is_symlink()
         assert (links_out / 'sub/page.html').read_text() == 'page'
-        assert (links_out / 'unreadable').stat().st_mode & 0o777 == 0o300
+        assert (links_out / 'unreadable').stat().st_mode & 0o777 == 0o000
         assert target.read_text() == 'untouched' and target.stat().st_nlink == 2
         assert logs()[-1]['skipped'] == 5 and logs()[-1]['publish'] == str(publish)
     finally:
         if (links_out / 'unreadable').exists():
             (links_out / 'unreadable').chmod(0o700)
-    assert (links_out / 'unreadable/hidden').read_text() == 'hidden'
+    assert (links_out / 'unreadable').read_text() == 'hidden'
     temp_before = set(Path('/tmp').glob('designer.*'))
     result = run('--out', str(fresh()), extra={'LAUNCH_ERROR':True})
     assert result.returncode == 2 and logs()[-1]['exit_code'] == 2, (result.returncode, result.stderr, logs()[-1])

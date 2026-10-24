@@ -8,8 +8,9 @@ and copied project files.
 Routes come from routing.json. Launch and finish go to the launch log; the
 single JSON result and its result text go beside each other under reports/.
 Bash runs only in the sandbox; unsandboxed commands are refused. Writes stay in
-OUT and the run's temp folder; there is no network, and reads are limited to
-those folders and the Playwright browser cache. The child gets a short environment
+OUT and the run's temp folder; there is no network. Reads deny home, user, shared
+temp, mounted-volume and local package config folders except OUT, the run's temp
+folder and Playwright cache; file tools stay in OUT. The child gets a short environment
 allow list, Claude sign-in, config folder and base URL variables hidden from Bash,
 and no CLAUDE.md, memory or background tasks.
 OUT must be new or empty. Cleanup stops the process group and processes left in
@@ -151,29 +152,25 @@ def stop_processes(child, name, out, temporary, existing):
 
 
 def copy_output(out, publish):
-    skipped = 0
+    skipped, created = 0, False
     def onerror(error):
         nonlocal skipped
         skipped += 1
     try:
         os.mkdir(publish, 0o755)
+        created = True
         for folder, dirs, files, dirfd in os.fwalk(out, follow_symlinks=False, onerror=onerror):
             target = os.path.join(publish, os.path.relpath(folder, out))
-            try:
-                os.makedirs(target, mode=0o755, exist_ok=True)
-            except OSError as error:
-                onerror(error)
-                dirs[:] = []
-                continue
             for name in dirs[:]:
                 try:
                     if stat.S_ISLNK(os.stat(name, dir_fd=dirfd, follow_symlinks=False).st_mode):
                         dirs.remove(name)
                         skipped += 1
-                except OSError as error:
+                except Exception:
                     dirs.remove(name)
-                    onerror(error)
+                    skipped += 1
             for name in files:
+                destination = None
                 try:
                     fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dirfd)
                     with os.fdopen(fd, "rb") as source:
@@ -181,16 +178,31 @@ def copy_output(out, publish):
                         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
                             skipped += 1
                             continue
-                        dest = os.open(os.path.join(target, name), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+                        os.makedirs(target, mode=0o755, exist_ok=True)
+                        path = os.path.join(target, name)
+                        dest = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+                        destination = path
                         with os.fdopen(dest, "wb") as output:
                             shutil.copyfileobj(source, output)
-                except OSError as error:
-                    onerror(error)
-    except OSError as error:
-        onerror(error)
+                except Exception:
+                    if destination is not None:
+                        try:
+                            os.unlink(destination)
+                        except Exception:
+                            pass
+                    empty = target
+                    while empty != publish:
+                        try:
+                            os.rmdir(empty)
+                        except Exception:
+                            break
+                        empty = os.path.dirname(empty)
+                    skipped += 1
+    except Exception:
+        skipped += 1
     if skipped:
         print("designer-run: warning: skipped %d unsafe or unreadable output entries" % skipped, file=sys.stderr)
-    return skipped
+    return created, skipped
 
 
 def die(message):
@@ -219,14 +231,14 @@ def token_counts(result):
                 cache_read_input_tokens="cacheReadInputTokens", output_tokens="outputTokens")
     totals = dict.fromkeys(keys)
     models = result.get("modelUsage")
-    if isinstance(models, dict):
-        for counts in models.values():
-            if isinstance(counts, dict):
-                for key, source in keys.items():
-                    value = counts.get(source)
-                    if type(value) is int and value >= 0:
-                        totals[key] = (totals[key] or 0) + value
-    if all(value is None for value in totals.values()):
+    if isinstance(models, dict) and models:
+        if any(not isinstance(counts, dict) for counts in models.values()):
+            return totals
+        for key, source in keys.items():
+            values = [counts.get(source) for counts in models.values()]
+            if all(type(value) is int and value >= 0 for value in values):
+                totals[key] = sum(values)
+    else:
         counts = result.get("usage")
         if isinstance(counts, dict):
             for key in keys:
@@ -262,7 +274,7 @@ def main():
     inputs = []
     for path in args.read:
         source = os.path.abspath(os.path.expanduser(path))
-        if os.path.islink(source) or not os.path.isfile(source) or os.path.basename(source).startswith("."):
+        if os.path.islink(source) or not os.path.isfile(source) or any(part.startswith(".") for part in source.split(os.sep)):
             die("project input must be a regular file: " + path)
         if os.path.basename(source) in [os.path.basename(item) for item in inputs]:
             die("project inputs must have distinct base names")
@@ -290,7 +302,7 @@ def main():
     if os.path.lexists(publish):
         die("the publish folder must not exist")
     config = os.environ.get("CLAUDE_CONFIG_DIR")
-    config = os.path.realpath(os.path.expanduser(config)) if config is not None else None
+    config = os.path.realpath(os.path.expanduser(config)) if config else None
     protected = (os.path.expanduser("~"), os.path.expanduser("~/.claude"), directory, root)
     if config is not None:
         protected += (config,)
@@ -326,7 +338,12 @@ def main():
         target = os.path.join(out, "input", os.path.basename(source))
         try:
             os.makedirs(os.path.dirname(target), exist_ok=True)
-            shutil.copyfile(source, target)
+            fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(fd, "rb") as stream:
+                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                    raise OSError("project input is not a regular file")
+                with open(target, "wb") as output:
+                    shutil.copyfileobj(stream, output)
         except OSError as error:
             die("cannot copy project input: %s" % error)
         full += "Project file: %s\n" % target
@@ -346,14 +363,16 @@ def main():
     except OSError as error:
         die("cannot list user processes: %s" % error)
     rc = 2
+    report_written = False
     try:
         for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
             signal.signal(sig, interrupted)
         log("launch")
         temporary = os.path.realpath(tempfile.mkdtemp(prefix="designer.", dir="/tmp"))
-        settings = {"sandbox": dict(SANDBOX, filesystem=dict(SANDBOX["filesystem"],
+        settings = {"permissions": {"blockReadsOutsideWorkingDirectories": True}, "sandbox": dict(SANDBOX, filesystem=dict(SANDBOX["filesystem"],
             denyRead=[path for path in ("~", "/Users", "/home", "/tmp", "/private/tmp",
-                "/private/var/folders", "/Volumes", "/mnt", "/media") if os.path.lexists(os.path.expanduser(path))]
+                "/var/tmp", "/private/var/tmp", "/opt/homebrew/etc", "/opt/homebrew/var",
+                "/usr/local/etc", "/usr/local/var", "/private/var/folders", "/Volumes", "/mnt", "/media") if os.path.lexists(os.path.expanduser(path))]
                 + ([config] if config is not None else []),
             allowRead=[out, temporary, "~/Library/Caches/ms-playwright", "~/.cache/ms-playwright"]), credentials={"envVars": [
             {"name": key, "mode": "deny"} for key in CLAUDE_ONLY if key in env]})}
@@ -379,6 +398,7 @@ def main():
             entry.update(token_counts(result))
             with open(report, "w") as stream:
                 stream.write(result["result"])
+            report_written = True
         except (ValueError, OSError) as error:
             entry["error"] = "unreadable result: %s" % error
             rc = rc or 2
@@ -393,8 +413,9 @@ def main():
             signal.signal(sig, signal.SIG_IGN)
         try:
             entry["stopped"] = stop_processes(child, name, out, temporary, existing)
-            entry["skipped"] = copy_output(out, publish)
-            entry["publish"] = publish
+            created, entry["skipped"] = copy_output(out, publish)
+            if created:
+                entry["publish"] = publish
         finally:
             if temporary is not None:
                 shutil.rmtree(temporary, ignore_errors=True)
@@ -402,10 +423,10 @@ def main():
             log("finished")
             for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
                 signal.signal(sig, signal.SIG_DFL)
-    if os.path.isfile(report):
+    if report_written:
         print(report)
-    if os.path.isdir(publish):
-        print(publish)
+        if "publish" in entry:
+            print(publish)
     return rc
 
 
