@@ -8,12 +8,14 @@ and copied project files.
 Routes come from routing.json. Launch and finish go to the launch log; the
 single JSON result and its result text go beside each other under reports/.
 Bash runs only in the sandbox; unsandboxed commands are refused. Writes stay in
-OUT and the run's temp folder; there is no network, and home reads are limited
-to OUT and the Playwright browser cache. The child gets a short environment
-allow list, Claude sign-in variables hidden from Bash, and no CLAUDE.md or memory.
+OUT and the run's temp folder; there is no network, and reads are limited to
+those folders and the Playwright browser cache. The child gets a short environment
+allow list, Claude sign-in, config folder and base URL variables hidden from Bash,
+and no CLAUDE.md or memory.
 OUT must be new or empty. Cleanup stops the process group and processes left in
 either folder or carrying the run marker (dropping the marker and leaving both
-folders escapes), then removes output links. Missing sandbox flags refuse the
+folders escapes), then copies only regular, singly linked output files into a
+fresh adjacent -publish folder for publishing. Missing sandbox flags refuse the
 launch; a machine without the sandbox fails the run.
 Exit codes: Claude's own, 2 for usage, routing or unreadable result problems.
 Claude flags: `claude --help` (Claude Code 2.1.308): -p/--print,
@@ -44,8 +46,9 @@ SANDBOX = {
     "network": {"allowedDomains": []},
     "filesystem": {"denyRead": ["~"], "denyWrite": ["/tmp/claude", "/private/tmp/claude", "~/.npm", "~/.claude/debug"]},
 }
-CLAUDE_AUTH = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN")
-ENVIRONMENT = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TZ") + CLAUDE_AUTH
+CLAUDE_ONLY = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN",
+               "CLAUDE_CONFIG_DIR", "ANTHROPIC_BASE_URL")
+ENVIRONMENT = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TZ") + CLAUDE_ONLY
 
 
 def user_pids():
@@ -147,19 +150,47 @@ def stop_processes(child, name, out, temporary, existing):
     return len(found | remaining)
 
 
-def remove_links(out):
-    removed = 0
-    for folder, dirs, files in os.walk(out, followlinks=False):
-        for name in dirs + files:
-            path = os.path.join(folder, name)
-            info = os.lstat(path)
-            if (not stat.S_ISDIR(info.st_mode) and
-                    (not stat.S_ISREG(info.st_mode) or info.st_nlink > 1)):
-                os.unlink(path)
-                removed += 1
-    if removed:
-        print("designer-run: warning: removed %d unsafe output entries" % removed, file=sys.stderr)
-    return removed
+def copy_output(out, publish):
+    skipped = 0
+    def onerror(error):
+        nonlocal skipped
+        skipped += 1
+    try:
+        os.mkdir(publish, 0o755)
+        for folder, dirs, files, dirfd in os.fwalk(out, follow_symlinks=False, onerror=onerror):
+            target = os.path.join(publish, os.path.relpath(folder, out))
+            try:
+                os.makedirs(target, mode=0o755, exist_ok=True)
+            except OSError as error:
+                onerror(error)
+                dirs[:] = []
+                continue
+            for name in dirs[:]:
+                try:
+                    if stat.S_ISLNK(os.stat(name, dir_fd=dirfd, follow_symlinks=False).st_mode):
+                        dirs.remove(name)
+                        skipped += 1
+                except OSError as error:
+                    dirs.remove(name)
+                    onerror(error)
+            for name in files:
+                try:
+                    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dirfd)
+                    with os.fdopen(fd, "rb") as source:
+                        info = os.fstat(source.fileno())
+                        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                            skipped += 1
+                            continue
+                        dest = os.open(os.path.join(target, name), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+                        with os.fdopen(dest, "wb") as output:
+                            shutil.copyfileobj(source, output)
+                except OSError as error:
+                    onerror(error)
+    except OSError as error:
+        onerror(error)
+    if skipped:
+        print("designer-run: warning: skipped %d unsafe or unreadable output entries" % skipped, file=sys.stderr)
+    return skipped
 
 
 def die(message):
@@ -233,11 +264,19 @@ def main():
     name = "designer-%s-%d" % (time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()), os.getpid())
     requested = os.path.expanduser(args.out or os.path.join(directory, "designs", name))
     out = os.path.realpath(requested)
-    if any(char in requested or char in out for char in "()*?[]\n"):
-        die("the output folder contains permission-rule characters")
+    publish = out + "-publish"
+    if os.path.lexists(publish):
+        die("the publish folder must not exist")
+    config = os.environ.get("CLAUDE_CONFIG_DIR")
+    config = os.path.realpath(os.path.expanduser(config)) if config is not None else None
     protected = (os.path.expanduser("~"), os.path.expanduser("~/.claude"), directory, root)
-    if any(os.path.commonpath((out, os.path.realpath(path))) == out for path in protected):
-        die("the output folder must not contain a protected folder")
+    if config is not None:
+        protected += (config,)
+    for path in (out, publish):
+        if any(char in requested or char in path for char in "()*?[]\n"):
+            die("the output folder contains permission-rule characters")
+        if any(os.path.commonpath((path, os.path.realpath(folder))) == path for folder in protected):
+            die("the output folder must not contain a protected folder")
     outside_checkout(out)
     try:
         if os.path.exists(out) and (not os.path.isdir(out) or os.listdir(out)):
@@ -268,16 +307,6 @@ def main():
         except OSError as error:
             die("cannot copy project input: %s" % error)
         full += "Project file: %s\n" % target
-    settings = {"sandbox": dict(SANDBOX, filesystem=dict(SANDBOX["filesystem"],
-        allowRead=[out, "~/Library/Caches/ms-playwright"]), credentials={"envVars": [
-        {"name": key, "mode": "deny"} for key in CLAUDE_AUTH if key in env]})}
-    mode = "dontAsk" if "dontAsk" in help_text else "default"
-    argv = ["claude", "-p", "--output-format", "json", "--model", route["model"],
-            "--effort", route["effort"], "--restricted", "--strict-mcp-config",
-            "--tools", "Read", "Grep", "Glob", "Bash", "Edit", "Write",
-            "--settings", json.dumps(settings), "--allowedTools", "Read", "Grep", "Glob",
-            "Edit(/%s/**)" % out, "Write(/%s/**)" % out,
-            "--disallowedTools", "NotebookEdit", "--permission-mode", mode]
     usage = {key: None for key in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")}
     entry = {"session": os.environ.get("CLAUDE_CODE_SESSION_ID"), "session_id": None,
              "role": "designer", "tool": "designer-run", "model": route["model"],
@@ -299,6 +328,19 @@ def main():
             signal.signal(sig, interrupted)
         log("launch")
         temporary = os.path.realpath(tempfile.mkdtemp(prefix="designer.", dir="/tmp"))
+        settings = {"sandbox": dict(SANDBOX, filesystem=dict(SANDBOX["filesystem"],
+            denyRead=[path for path in ("~", "/Users", "/home", "/tmp", "/private/tmp",
+                "/private/var/folders", "/Volumes", "/mnt", "/media") if os.path.lexists(os.path.expanduser(path))]
+                + ([config] if config is not None else []),
+            allowRead=[out, temporary, "~/Library/Caches/ms-playwright", "~/.cache/ms-playwright"]), credentials={"envVars": [
+            {"name": key, "mode": "deny"} for key in CLAUDE_ONLY if key in env]})}
+        mode = "dontAsk" if "dontAsk" in help_text else "default"
+        argv = ["claude", "-p", "--output-format", "json", "--model", route["model"],
+                "--effort", route["effort"], "--restricted", "--strict-mcp-config",
+                "--tools", "Read", "Grep", "Glob", "Bash", "Edit", "Write",
+                "--settings", json.dumps(settings), "--allowedTools", "Read", "Grep", "Glob",
+                "Edit(/%s/**)" % out, "Write(/%s/**)" % out,
+                "--disallowedTools", "NotebookEdit", "--permission-mode", mode]
         env["CLAUDE_CODE_TMPDIR"] = temporary
         with open(result_path, "wb") as stream:
             child = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=stream, cwd=out,
@@ -324,7 +366,7 @@ def main():
             rc = rc or 2
     except OSError as error:
         entry["error"] = str(error)
-        print("designer-run: cannot launch claude: %s" % error, file=sys.stderr)
+        print("designer-run: run failed: %s" % error, file=sys.stderr)
     except SystemExit as error:
         rc = error.code
         raise
@@ -333,7 +375,8 @@ def main():
             signal.signal(sig, signal.SIG_IGN)
         try:
             entry["stopped"] = stop_processes(child, name, out, temporary, existing)
-            entry["removed"] = remove_links(out)
+            entry["skipped"] = copy_output(out, publish)
+            entry["publish"] = publish
         finally:
             if temporary is not None:
                 shutil.rmtree(temporary, ignore_errors=True)
@@ -343,6 +386,8 @@ def main():
                 signal.signal(sig, signal.SIG_DFL)
     if os.path.isfile(report):
         print(report)
+    if os.path.isdir(publish):
+        print(publish)
     return rc
 
 

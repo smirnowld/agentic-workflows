@@ -2,6 +2,8 @@
 # Exercise the independent designer session with a local fake Claude.
 root=$(cd "$(dirname "$0")/.." && pwd)
 python3 - "$root" <<'PY'
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
@@ -38,6 +40,39 @@ with patch('os.killpg') as group, patch('time.monotonic', side_effect=[0,3,3]), 
         launcher['stop_processes'].__globals__, run_processes=scan):
     assert launcher['stop_processes'](Child(), 'example', '/output', None, {101}) == 0
     assert group.call_args_list == [((104, signal.SIGTERM),), ((104, signal.SIGKILL),)]
+# The publish copy can be checked without process-listing permissions.
+with tempfile.TemporaryDirectory() as temporary:
+    base = Path(temporary)
+    out, publish = base / 'out', base / 'publish'
+    out.mkdir()
+    (out / 'sub').mkdir()
+    (out / 'sub/page').write_text('page')
+    outside = base / 'outside'
+    outside.write_text('untouched')
+    (out / 'link').symlink_to(outside)
+    (out / 'folder-link').symlink_to(base, target_is_directory=True)
+    os.link(outside, out / 'hardlink')
+    os.mkfifo(out / 'fifo')
+    (out / 'unreadable').mkdir()
+    (out / 'unreadable/hidden').write_text('hidden')
+    (out / 'unreadable').chmod(0o300)
+    try:
+        warning = io.StringIO()
+        with contextlib.redirect_stderr(warning):
+            assert launcher['copy_output'](str(out), str(publish)) == 5
+        assert 'warning: skipped 5' in warning.getvalue()
+        assert sorted(str(p.relative_to(publish)) for p in publish.rglob('*')) == ['sub', 'sub/page']
+        assert (publish / 'sub/page').read_text() == 'page'
+        assert outside.read_text() == 'untouched' and outside.stat().st_nlink == 2
+        assert sorted(p.name for p in out.iterdir()) == ['fifo','folder-link','hardlink','link','sub','unreadable']
+    finally:
+        (out / 'unreadable').chmod(0o700)
+    assert (out / 'unreadable/hidden').read_text() == 'hidden'
+    clean = base / 'clean'
+    clean.mkdir()
+    with contextlib.redirect_stderr(io.StringIO()) as warning:
+        assert launcher['copy_output'](str(clean), str(base / 'clean-publish')) == 0
+    assert not warning.getvalue()
 print('designer-run helpers: ok', flush=True)
 with tempfile.TemporaryDirectory() as temporary:
     tmp = Path(temporary).resolve()
@@ -60,9 +95,14 @@ Path(config['RECORD']).write_text(json.dumps({'argv':sys.argv[1:],'cwd':os.getcw
 if config.get('LINKS'):
     out = Path.cwd()
     (out / 'symlink').symlink_to(config['LINKS'])
+    (out / 'folder-link').symlink_to(Path(config['LINKS']).parent, target_is_directory=True)
     os.link(config['LINKS'], out / 'hardlink')
     os.mkfifo(out / 'fifo')
-    (out / 'page.html').write_text('page')
+    (out / 'sub').mkdir()
+    (out / 'sub/page.html').write_text('page')
+    (out / 'unreadable').mkdir()
+    (out / 'unreadable/hidden').write_text('hidden')
+    (out / 'unreadable').chmod(0o300)
 if config.get('HOLD'):
     time.sleep(300)
 if config.get('BACKGROUND'):
@@ -82,10 +122,12 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
     env = dict(os.environ, PATH=str(tmp / 'bin') + os.pathsep + system,
                AGENTIC_LOG_DIR=str(tmp / 'log'), CLAUDE_CODE_SESSION_ID='parent-session', RECORD=str(tmp / 'record'))
     env.pop('ANTHROPIC_AUTH_TOKEN', None)
-    env.update(ANTHROPIC_API_KEY='test-value', CLAUDE_CODE_OAUTH_TOKEN='test-value', ORDINARY='dropped', LC_MESSAGES='C')
+    env.update(ANTHROPIC_API_KEY='test-value', CLAUDE_CODE_OAUTH_TOKEN='test-value', ORDINARY='dropped', LC_MESSAGES='C',
+               CLAUDE_CONFIG_DIR=str(tmp / 'claude-config'), ANTHROPIC_BASE_URL='https://example.invalid')
+    (tmp / 'claude-config').mkdir()
     scrubbed = ('GH_TOKEN','GITHUB_TOKEN','GH_ENTERPRISE_TOKEN','GITHUB_ENTERPRISE_TOKEN',
                 'AWS_SECRET_ACCESS_KEY','SSH_AUTH_SOCK','GIT_ASKPASS','MY_PASSWORD','CLAUDECODE',
-                'OP_SESSION_test','DATABASE_URL','CLAUDE_CONFIG_DIR')
+                'OP_SESSION_test','DATABASE_URL','CLAUDE_CODE_ENTRYPOINT')
     env.update({key:'test-value' for key in scrubbed})
     tool = str(root / 'bin/designer-run')
     def configure(extra=None):
@@ -108,7 +150,7 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
     out = tmp / 'design'
     result = run('--out', str(out))
     assert result.returncode == 0, result.stderr
-    report = Path(result.stdout.strip())
+    report = Path(result.stdout.splitlines()[0])
     assert report.read_text() == 'page and screenshots'
     raw = json.loads(report.with_suffix('.json').read_text())
     assert raw['session_id'] == 'child-session'
@@ -118,14 +160,17 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
     expected = {'sandbox': {
         'enabled':True, 'failIfUnavailable':True, 'allowUnsandboxedCommands':False,
         'autoAllowBashIfSandboxed':True, 'network':{'allowedDomains':[]},
-        'filesystem':{'denyRead':['~'], 'allowRead':[str(out),'~/Library/Caches/ms-playwright'],
+        'filesystem':{'denyRead':[path for path in ('~','/Users','/home','/tmp','/private/tmp',
+            '/private/var/folders','/Volumes','/mnt','/media') if os.path.lexists(os.path.expanduser(path))]
+            + [str(tmp / 'claude-config')],
+            'allowRead':[str(out),recorded['env']['CLAUDE_CODE_TMPDIR'],'~/Library/Caches/ms-playwright','~/.cache/ms-playwright'],
             'denyWrite':['/tmp/claude','/private/tmp/claude','~/.npm','~/.claude/debug']},
-        'credentials':{'envVars':[{'name':key,'mode':'deny'} for key in ('ANTHROPIC_API_KEY','CLAUDE_CODE_OAUTH_TOKEN')]}}}
+        'credentials':{'envVars':[{'name':key,'mode':'deny'} for key in ('ANTHROPIC_API_KEY','CLAUDE_CODE_OAUTH_TOKEN','CLAUDE_CONFIG_DIR','ANTHROPIC_BASE_URL')]}}}
     assert settings == expected
     assert not any(key in recorded['env'] for key in scrubbed)
     assert recorded['env']['ANTHROPIC_API_KEY'] == recorded['env']['CLAUDE_CODE_OAUTH_TOKEN'] == 'test-value'
     allowed = {'PATH','HOME','USER','LOGNAME','SHELL','LANG','TERM','TZ',
-               'ANTHROPIC_API_KEY','ANTHROPIC_AUTH_TOKEN','CLAUDE_CODE_OAUTH_TOKEN'}
+               'ANTHROPIC_API_KEY','ANTHROPIC_AUTH_TOKEN','CLAUDE_CODE_OAUTH_TOKEN','CLAUDE_CONFIG_DIR','ANTHROPIC_BASE_URL'}
     expected_env = {k:v for k,v in env.items() if k in allowed or k.startswith('LC_')}
     expected_env.update(DESIGNER_RUN=report.stem, CLAUDE_CODE_TMPDIR=recorded['env']['CLAUDE_CODE_TMPDIR'],
                         CLAUDE_CODE_DISABLE_CLAUDE_MDS='1', CLAUDE_CODE_DISABLE_AUTO_MEMORY='1')
@@ -155,6 +200,9 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
         assert entry['role'] == 'designer' and entry['design'] is True and entry['tool'] == 'designer-run'
         assert entry['session'] == 'parent-session' and entry['out'] == str(out)
         assert entry['model'] == 'opus' and entry['effort'] == 'high' and entry['route'] == 'primary'
+    assert entries[1]['skipped'] == 0 and not result.stderr, result.stderr
+    assert entries[1]['publish'] == result.stdout.splitlines()[1] == str(out) + '-publish'
+    assert Path(result.stdout.splitlines()[1]).is_dir()
     assert entries[1]['session_id'] == 'child-session' and entries[1]['exit_code'] == 0
     assert [entries[1][k] for k in ('input_tokens','cache_creation_input_tokens','cache_read_input_tokens','output_tokens')] == [12,3,5,7]
     assert run('--fallback').returncode == 0
@@ -170,7 +218,7 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
     assert run('--out', str(fresh()), extra={'FAKE_USAGE':json.dumps(invalid)}).returncode == 0
     assert all(logs()[-1][k] is None for k in ('input_tokens','cache_creation_input_tokens','cache_read_input_tokens','output_tokens'))
     result = run('--out', str(fresh()), extra={'FAKE_EXIT':'3'})
-    assert result.returncode == 3 and Path(result.stdout.strip()).is_file()
+    assert result.returncode == 3 and Path(result.stdout.splitlines()[0]).is_file()
     assert logs()[-1]['exit_code'] == 3
     check_temp(json.loads((tmp / 'record').read_text()))
     def refused(*args, extra=None):
@@ -208,7 +256,7 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
     link.symlink_to(repo, target_is_directory=True)
     assert run('--out', str(link / 'design')).returncode == 2
     # Broad output permissions must not include a protected folder.
-    for protected in (Path.home(), Path.home() / '.claude', tmp / 'log', root):
+    for protected in (Path.home(), Path.home() / '.claude', tmp / 'log', root, tmp / 'claude-config'):
         for path in (protected, protected.parent):
             result = run('--out', str(path))
             assert result.returncode == 2 and 'protected folder' in result.stderr, result.stderr
@@ -230,17 +278,41 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
     occupied.mkdir()
     (occupied / 'page').write_text('page')
     refused('--out', str(occupied))
+    for directory in (True, False):
+        out = fresh()
+        publish = Path(str(out) + '-publish')
+        if directory:
+            publish.mkdir()
+        else:
+            publish.write_text('occupied')
+        refused('--out', str(out))
+        assert not out.exists()
     target = tmp / 'outside-file'
     target.write_text('untouched')
     links_out = fresh()
-    result = run('--out', str(links_out), extra={'LINKS':str(target)})
-    assert result.returncode == 0 and len(result.stderr.splitlines()) == 1, result.stderr
-    assert sorted(p.name for p in links_out.iterdir()) == ['page.html']
-    assert target.read_text() == 'untouched' and target.stat().st_nlink == 1
-    assert logs()[-1]['removed'] == 3
+    try:
+        result = run('--out', str(links_out), extra={'LINKS':str(target)})
+        assert result.returncode == 0 and len(result.stderr.splitlines()) == 1, result.stderr
+        assert 'warning: skipped 5' in result.stderr, result.stderr
+        publish = Path(str(links_out) + '-publish')
+        assert result.stdout.splitlines()[1] == str(publish)
+        assert sorted(str(p.relative_to(publish)) for p in publish.rglob('*') if p.is_file()) == ['sub/page.html']
+        assert all(not p.is_symlink() for p in publish.rglob('*'))
+        assert (publish / 'sub/page.html').read_text() == 'page'
+        assert sorted(p.name for p in links_out.iterdir()) == ['fifo','folder-link','hardlink','sub','symlink','unreadable']
+        assert (links_out / 'symlink').is_symlink() and (links_out / 'folder-link').is_symlink()
+        assert (links_out / 'sub/page.html').read_text() == 'page'
+        assert (links_out / 'unreadable').stat().st_mode & 0o777 == 0o300
+        assert target.read_text() == 'untouched' and target.stat().st_nlink == 2
+        assert logs()[-1]['skipped'] == 5 and logs()[-1]['publish'] == str(publish)
+    finally:
+        if (links_out / 'unreadable').exists():
+            (links_out / 'unreadable').chmod(0o700)
+    assert (links_out / 'unreadable/hidden').read_text() == 'hidden'
     temp_before = set(Path('/tmp').glob('designer.*'))
     result = run('--out', str(fresh()), extra={'LAUNCH_ERROR':True})
     assert result.returncode == 2 and logs()[-1]['exit_code'] == 2, (result.returncode, result.stderr, logs()[-1])
+    assert result.stderr.startswith('designer-run: run failed: '), result.stderr
     assert 'Permission denied' in logs()[-1]['error'] and 'unreadable result' not in logs()[-1]['error'], logs()[-1]
     assert set(Path('/tmp').glob('designer.*')) == temp_before
     fake.chmod(0o755)
