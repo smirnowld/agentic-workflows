@@ -82,6 +82,23 @@ sys.exit(int(os.environ.get('FAKE_EXIT','0')))
     link = tmp / 'linked'
     link.symlink_to(repo, target_is_directory=True)
     assert run('--out', str(link / 'design')).returncode == 2
+    # Broad output permissions must not include a protected folder.
+    for protected in (Path.home(), Path.home() / '.claude', tmp / 'log', root):
+        for path in (protected, protected.parent):
+            result = run('--out', str(path))
+            assert result.returncode == 2 and 'protected folder' in result.stderr, result.stderr
+            assert len(result.stderr.splitlines()) == 1
+    for char in '()*?[]\n':
+        path = tmp / ('unsafe' + char + 'out')
+        result = run('--out', str(path))
+        assert result.returncode == 2 and 'permission-rule characters' in result.stderr
+        assert len(result.stderr.splitlines()) == 1 and not path.exists()
+    protected_link = tmp / 'protected-link'
+    protected_link.symlink_to(tmp / 'log', target_is_directory=True)
+    assert run('--out', str(protected_link)).returncode == 2
+    assert len(logs()) == before
+    assert run().returncode == 0
+    assert Path(json.loads((tmp / 'record').read_text())['cwd']).parent == tmp / 'log/designs'
     denies = json.loads((root / 'templates/track/pm/.claude/settings.json').read_text())['permissions']['deny']
     assert all(tool in denies for tool in ('Edit','Write','NotebookEdit'))
 print('designer-run: ok')

@@ -41,12 +41,14 @@ with tempfile.TemporaryDirectory() as tmp:
     transcript('private', [message('excluded', 900)])
     (states / "child").write_text('{"coordinator": true}')
     transcript('child', [message('runner-copy', 24)])  # runner accounted by its log
-    def sub(name, meta, n):
-        folder = project / 'work' / 'subagents'
+    def sub(name, meta, n, session='work'):
+        folder = project / session / 'subagents'
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / ('agent-' + name + '.jsonl')
         path.write_text(json.dumps(message(name, n))+'\n')
-        path.with_suffix('.meta.json').write_text(json.dumps(meta))
+        if meta is not None:
+            path.with_suffix('.meta.json').write_text(json.dumps(meta))
+        return path
     sub('impl', dict(agentType='agentic-workflows:implementer', toolUseId='impl'), 44)  # 50
     sub('visual', dict(agentType='agentic-workflows:visual-reviewer', toolUseId='visual'), 14)  # 20
     sub('designer', dict(agentType='agentic-workflows:designer', toolUseId='designer'), 4)  # 10
@@ -71,6 +73,39 @@ with tempfile.TemporaryDirectory() as tmp:
     # Design = PM 10 + visual 20 + designer agent 10 + critic 20 + runner 30 = 90.
     # Lead = 100; implementation = main 200 + impl 50 + review 10 + Codex 40 = 300.
     assert result.stdout == 'design: 90 tokens\nlead: 100 tokens\nimplementation: 300 tokens\ndesign share: 18.37% (over 10% line)\n', result.stdout
+    # Subagents inherit the parent category even without metadata.
+    lead_sub = sub('lead-review', dict(agentType='agentic-workflows:reviewer'), 14, 'lead')
+    assert 'lead: 120 tokens' in run().stdout
+    lead_sub.with_suffix('.meta.json').unlink()
+    work_sub = sub('no-meta', None, 24)
+    result = run('--since', time(4), '--until', time(7))
+    assert 'lead: 120 tokens' in result.stdout and 'implementation: 330 tokens' in result.stdout
+    assert not result.stderr, result.stderr
+    work_sub.with_suffix('.meta.json').write_text('{broken')
+    result = run(expected=1)
+    assert 'report incomplete' in result.stderr and '.meta.json' in result.stderr
+    work_sub.with_suffix('.meta.json').unlink()
+    work_sub.unlink()
+    lead_sub.unlink()
+    # Early failures have no usage; successful or partly counted runs still need valid counts.
+    for tool, keys in [('codex-run', ('input_tokens', 'cached_input_tokens', 'output_tokens')),
+                       ('designer-run', tuple(usage(0)))]:
+        row = dict(decision='finished', tool=tool, session='work', design=True, time=time(5), exit_code=2)
+        rows.append(row)
+        for counts in ({}, dict.fromkeys(keys)):
+            row.update(counts)
+            save()
+            result = run('--since', time(4), '--until', time(7))
+            assert 'design: 90 tokens' in result.stdout and not result.stderr
+            row['exit_code'] = 0
+            save()
+            assert 'invalid token counts' in run(expected=1).stderr
+            row['exit_code'] = 2
+        row['exit_code'], row['input_tokens'] = 2, 1
+        save()
+        assert 'invalid token counts' in run(expected=1).stderr
+        rows.pop()
+    save()
     # Zone offsets must sort by instant; the mark starts before the window.
     rows[2]['time'] = '2026-01-01T01:02:00+01:00'
     save()

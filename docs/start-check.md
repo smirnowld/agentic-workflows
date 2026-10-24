@@ -22,6 +22,8 @@ Each decision (`allow`, `deny`, `fire`, `not-configured`, `rules-late`, `error`)
 
 The start check logs its own decision before the app acts. After the app acts, [hooks/start-result.py](../hooks/start-result.py) logs a `start-result` line with `result` set to `started`, `proposed`, `refused`, `unknown` or `error`, the started session ID when present, and the first 200 characters of a refusal. Count real starts from those `start-result` lines whose `result` is `started`. Calls rejected before execution do not fire the result hook. Hook errors log `result: error` with the error text; if the log cannot be written, the hook prints a one-line note to stderr. It always exits successfully and makes no permission decision.
 
+`design-mark` lines record `mark` (`start` or `end`), `item` and `session`. `codex-run` and `designer-run` write `launch` and `finished` lines, with `design` when tagged and token counts on `finished`; `design-share` reads these lines.
+
 ## The config file
 
 Per track: `TRACK/lead/.claude/agentic-workflows.json` in the lead's folder (`$CLAUDE_PROJECT_DIR`, or the working directory the hook is given when that is unset). `AGENTIC_CONFIG`, when set, names a file to use instead. The track template ships a starting copy, [templates/track/lead/.claude/agentic-workflows.json](../templates/track/lead/.claude/agentic-workflows.json); replace `LOGIN` and `OWNER/REPO` in the copy. The track folder is not a repository, so the real login stays in the local copy; the plugin's template holds placeholders only.

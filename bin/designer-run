@@ -6,6 +6,8 @@
 The prompt is RULES.md, the designer body, the brief, then its output folder.
 Routes come from routing.json. Launch and finish go to the launch log; the
 single JSON result and its result text go beside each other under reports/.
+Edit and Write are confined to the output folder; Bash writes, git and network
+access are limited only by the designer's instructions.
 Exit codes: Claude's own, 2 for usage, routing or unreadable result problems.
 Claude flags: `claude --help` (Claude Code 2.1.308): -p/--print,
 --output-format json, --model MODEL, --effort high, --allowedTools and
@@ -84,7 +86,13 @@ def main():
     brief = read(args.prompt_file)
     directory = os.path.realpath(os.path.expanduser(os.environ.get("AGENTIC_LOG_DIR") or "~/.claude/agentic-workflows"))
     name = "designer-%s-%d" % (time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()), os.getpid())
-    out = os.path.realpath(os.path.expanduser(args.out or os.path.join(directory, "designs", name)))
+    requested = os.path.expanduser(args.out or os.path.join(directory, "designs", name))
+    out = os.path.realpath(requested)
+    if any(char in requested or char in out for char in "()*?[]\n"):
+        die("the output folder contains permission-rule characters")
+    protected = (os.path.expanduser("~"), os.path.expanduser("~/.claude"), directory, root)
+    if any(os.path.commonpath((out, os.path.realpath(path))) == out for path in protected):
+        die("the output folder must not contain a protected folder")
     outside_checkout(out)
     try:
         os.makedirs(out, exist_ok=True)

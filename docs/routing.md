@@ -35,6 +35,7 @@ Why: in blind-graded side-by-side runs, Codex Sol at medium did best on specifie
 | Visual reviewer | Sonnet, medium | Screens and pages: layout, states, copy with the strings attached. |
 
 An Agent launch of the designer is checked like the others; the PM uses `designer-run` because its folder denies edits.
+Its Edit and Write allows cover only the output folder; Bash is unrestricted, so shell writes, git and network access are limited only by the designer's instructions.
 
 The maintainer starts PM and lead sessions with their routes. Neither launch check nor start check validates their own session model or effort; start check checks coordinator starts in configured tracks. An Agent launch of PM or lead passes through, as do spec critic and strategist, which have no Claude route; use `codex-run` for their enforced route and read-only sandbox.
 

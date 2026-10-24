@@ -148,6 +148,9 @@ def main():
         category = "design" if row.get("design") is True else "implementation" if row.get("session") and coordinator(row["session"]) else None
         if category:
             keys = ("input_tokens", "output_tokens") if row["tool"] == "codex-run" else CLAUDE_KEYS
+            if (type(row.get("exit_code")) is int and row["exit_code"] != 0
+                    and all(row.get(key) is None for key in (*keys, "cached_input_tokens"))):
+                continue
             count.totals[category] += count.usage(row, keys, a.log)
 
     try:
@@ -188,9 +191,10 @@ def main():
                 count.warn(subdir, str(e))
                 continue
             for sub in subs:
-                meta = count.read(sub.with_suffix(".meta.json"))
+                meta_path = sub.with_suffix(".meta.json")
+                meta = count.read(meta_path) if meta_path.exists() else {}
                 design = meta.get("agentType") == "agentic-workflows:designer" or launches.get((session, meta.get("toolUseId")), False)
-                bucket = "design" if design else "implementation" if category == "implementation" and meta else None
+                bucket = "design" if design else category
                 count.transcript(sub, bucket)
     for name, tokens in count.totals.items():
         print("%s: %d tokens" % (name, tokens))
