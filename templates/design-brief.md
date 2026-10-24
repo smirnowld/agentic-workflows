@@ -20,7 +20,7 @@ What they should feel: ...
 
 ## Must show (at least)
 
-<!-- The states that matter to the person, healthy ones included, not only what goes wrong. -->
+<!-- The states that matter to the person, healthy ones included, not only what goes wrong. What goes wrong today shows here. -->
 
 1. STATE: ...
 
@@ -30,7 +30,7 @@ Beyond these, show what you judge matters for them. Leave out what doesn't.
 
 <!-- Two or three named apps the maintainer holds up for this kind of screen. -->
 
-APP and APP: WHAT THEY GET RIGHT. Don't copy their look; this product stays recognisably itself (see the design system).
+APP and APP: WHAT THEY GET RIGHT. What would make the maintainer wince: ... Don't copy their look; this product stays recognisably itself (see the design system).
 
 ## Platforms and frames
 
