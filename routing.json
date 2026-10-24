@@ -8,6 +8,10 @@
     "coordinator": { "family": "claude", "model": "opus", "effort": "medium" },
     "lead": { "family": "claude", "model": "opus", "effort": "medium" },
     "pm": { "family": "claude", "model": "opus", "effort": "high" },
+    "designer": {
+      "primary": { "family": "claude", "model": "opus", "effort": "high" },
+      "fallback": { "family": "claude", "model": "fable", "effort": "high" }
+    },
     "spec-critic": { "family": "codex", "model": "gpt-6.1-sol", "effort": "high" },
     "strategist": { "family": "codex", "model": "gpt-6.1-sol", "effort": "xhigh" },
     "explorer": { "family": "claude", "model": "sonnet", "effort": "low" },

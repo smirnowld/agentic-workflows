@@ -17,7 +17,7 @@ agent() {
   effort=medium
   case "$1" in
     *critical-reviewer-strongest) effort=xhigh ;;
-    *critical-reviewer) effort=high ;;
+    *critical-reviewer|*designer) effort=high ;;
     *explorer) effort=low ;;
   esac
   printf '{"session_id":"s1","cwd":"/w","tool_name":"Agent","tool_input":{"subagent_type":"%s","effort":"%s"%s}}' "$1" "$effort" "${2:+,\"model\":\"$2\"}" | python3 "$hook"
@@ -50,6 +50,9 @@ expect_agent "critical-reviewer sonnet" agentic-workflows:critical-reviewer sonn
 expect_agent "critical-reviewer-strongest fable" agentic-workflows:critical-reviewer-strongest fable allow
 expect_agent "critical-reviewer-strongest opus" agentic-workflows:critical-reviewer-strongest opus deny
 expect_agent "critical-reviewer-strongest no model, file model" agentic-workflows:critical-reviewer-strongest "" allow
+expect_agent "designer primary" agentic-workflows:designer opus allow
+expect_agent "designer fallback" agentic-workflows:designer fable allow
+expect_agent "designer wrong model" agentic-workflows:designer sonnet deny
 expect_agent "reviewer no model, file model" agentic-workflows:reviewer "" allow
 expect_agent "critical-reviewer no model, file model" agentic-workflows:critical-reviewer "" allow
 expect_agent "strategist Agent has no Claude route" agentic-workflows:strategist fable pass
@@ -188,7 +191,7 @@ python3 - "$hook" "$log" <<'PYTEST' || bad "Agent metadata"
 import json, subprocess, sys
 hook, log = sys.argv[1:]
 def launch(**ti):
-    subprocess.run([sys.executable, hook], input=json.dumps({"tool_name":"Agent", "tool_input":ti}), text=True, capture_output=True, check=True)
+    subprocess.run([sys.executable, hook], input=json.dumps({"tool_name":"Agent", "tool_use_id":"tool-1", "tool_input":ti}), text=True, capture_output=True, check=True)
     return json.loads(open(log).readlines()[-1])
 e = launch(subagent_type="agentic-workflows:implementer", model="sonnet", effort="high")
 assert (e["effort"], e["effort_from"], e["kind"]) == ("high", "input", None)
@@ -212,8 +215,18 @@ assert e["route_ok"] is True
 for description in ("do specified: work", "unknown: work", ""):
     e = launch(subagent_type="agentic-workflows:implementer", effort="medium", description=description)
     assert e["kind"] is None and "route_ok" not in e and e["decision"] == "allow"
+for model, effort, decision in (("opus", "high", "allow"), ("fable", "high", "allow"),
+                                ("sonnet", "high", "deny"), ("opus", "medium", "deny"),
+                                ("opus", None, "deny")):
+    e = launch(subagent_type="agentic-workflows:designer", model=model, effort=effort)
+    assert e["decision"] == decision and e["role"] == "designer" and e["design"] is True
+    assert e["tool_use_id"] == "tool-1"
+e = launch(subagent_type="agentic-workflows:visual-reviewer", model="sonnet", effort="medium", description="design: compare frames")
+assert e["decision"] == "allow" and e["design"] is True and e["tool_use_id"] == "tool-1"
+e = launch(subagent_type="Explore", description="design: inspect")
+assert e["design"] is True and e["tool_use_id"] == "tool-1"
 e = launch(subagent_type="agentic-workflows:reviewer", model="sonnet", effort="medium")
-assert e["decision"] == "allow"
+assert e["decision"] == "allow" and e["design"] is False and e["tool_use_id"] == "tool-1"
 for effort in (None, "high", "medium"):
     ti = dict(subagent_type="agentic-workflows:critical-reviewer-strongest", model="fable")
     if effort is not None:

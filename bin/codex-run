@@ -104,6 +104,7 @@ def main():
     p.add_argument("--cwd", required=True)
     p.add_argument("--prompt-file", required=True)
     p.add_argument("--fallback", action="store_true")
+    p.add_argument("--design", action="store_true", help="count this run as design work")
     a = p.parse_args()  # exits 2 on a usage error
     # The plugin root is the parent of bin/, wherever the script is run from.
     root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -152,6 +153,8 @@ def main():
              "session": os.environ.get("CLAUDE_CODE_SESSION_ID") or os.environ.get("CLAUDE_SESSION_ID"), "cwd": os.path.abspath(a.cwd),
              "role": a.role, "model": route["model"], "tool": "codex-run",
              "kind": a.kind, "report": report}
+    if a.design:
+        entry["design"] = True
     write_log(dict(entry, decision="launch"))
     try:
         # A file for stdin avoids blocking on a full output pipe while feeding a brief.

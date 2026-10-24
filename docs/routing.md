@@ -24,6 +24,7 @@ Why: in blind-graded side-by-side runs, Codex Sol at medium did best on specifie
 | Coordinator | Opus, medium | Takes one work item from one brief; the start check compares each start in a track to this route. |
 | Lead | Opus, medium | Briefs and delivers Ready work; never edits ([lead.md](lead.md)). |
 | PM | Opus, high | Intent checks and specs need critical conversation ([ADR-0001](adr/0001-product-manager.md)). |
+| Designer | Opus, high; Fable, high on the second attempt after “Not there” | Builds screens from design briefs ([ADR-0002](adr/0002-designer.md)); run by the PM through `designer-run`. |
 | Spec critic | Codex Sol, high | Cold spec review through `codex-run` challenges gaps before Ready. |
 | Strategist | Codex Sol, extra-high | Second opinion through `codex-run` on strategy and costs for maintainer decisions. |
 | Explorer | Sonnet, low | Read-only search; returns conclusions with references. |
@@ -32,6 +33,8 @@ Why: in blind-graded side-by-side runs, Codex Sol at medium did best on specifie
 | Critical reviewer | the other family: Codex Sol high for Claude-built work, Opus high for Codex-built work | Review of critical changes ([RULES.md](../RULES.md#proof-and-review)). |
 | Strongest critical reviewer | the other family: Codex Astra extra-high for Claude-built work, Fable extra-high for Codex-built work | Only when a revert can't undo the harm and it reaches production data, backups, secrets or credentials, money, or real people's data. Never lowered. |
 | Visual reviewer | Sonnet, medium | Screens and pages: layout, states, copy with the strings attached. |
+
+An Agent launch of the designer is checked like the others; the PM uses `designer-run` because its folder denies edits.
 
 The maintainer starts PM and lead sessions with their routes. Neither launch check nor start check validates their own session model or effort; start check checks coordinator starts in configured tracks. An Agent launch of PM or lead passes through, as do spec critic and strategist, which have no Claude route; use `codex-run` for their enforced route and read-only sandbox.
 

@@ -48,7 +48,7 @@ The PM sets P2 and P3 and reviews P3 at phase end. The lead sets P1 only for fir
 
 ## Writing a brief
 
-One brief for one work item, from `templates/brief.md` in this plugin's repository; it is the prompt of the coordinator.
+One brief for one work item, from `templates/brief.md` in this plugin's repository; it is the prompt of the coordinator. An item with screens links its approved page for the maintainer and secret gist for agents; link the gist in the brief and require the visual reviewer to compare built screens with it. The PM deletes the gist once the item is accepted.
 
 1. Copy the template's sections as they are and fill every one; write "none" where there is nothing.
 2. Conclusions, not reasoning. The receiver never sees your chat, so every fact needs its link or evidence and every settled decision its link.

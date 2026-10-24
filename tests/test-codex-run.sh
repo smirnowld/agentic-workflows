@@ -104,6 +104,10 @@ python3 -c 'import json,sys; e=json.loads(open(sys.argv[1]).readlines()[-1]); as
 "$tool" --role implementer --kind specified --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1
 python3 -c 'import json,sys; e=json.loads(open(sys.argv[1]).readlines()[-1]); assert all(e[k] is None for k in ("input_tokens","cached_input_tokens","output_tokens"))' "$tmp/log/launch-log.jsonl" || bad "missing usage must be null"
 
+# Design classification follows the run on both log lines for any role.
+"$tool" --role spec-critic --design --cwd "$tmp/work" --prompt-file "$tmp/prompt" >/dev/null 2>&1 || bad "design spec critic failed"
+python3 -c 'import json,sys; es=[json.loads(s) for s in open(sys.argv[1]).readlines()[-2:]]; assert [e["decision"] for e in es]==["launch","finished"]; assert all(e.get("design") is True and e["role"]=="spec-critic" for e in es)' "$tmp/log/launch-log.jsonl" || bad "design classification"
+
 # A codex killed by a signal exits 128+n and the log says the same.
 cat > "$tmp/bin/codex" <<'FAKE'
 #!/bin/sh
