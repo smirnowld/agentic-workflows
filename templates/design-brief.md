@@ -30,7 +30,9 @@ Beyond these, show what you judge matters for them. Leave out what doesn't.
 
 <!-- Two or three named apps the maintainer holds up for this kind of screen. -->
 
-APP and APP: WHAT THEY GET RIGHT. What would make the maintainer wince: ... Don't copy their look; this product stays recognisably itself (see the design system).
+APP and APP: WHAT THEY GET RIGHT. Don't copy their look; this product stays recognisably itself (see the design system).
+
+What would make the maintainer wince: ...
 
 ## Platforms and frames
 
