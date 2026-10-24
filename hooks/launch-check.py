@@ -105,17 +105,25 @@ def plugin_root():
         os.path.dirname(os.path.abspath(__file__)))
 
 
+def claude_routes(spec):
+    """Claude routes, with primaries before fallbacks for model suggestions."""
+    if "kinds" in spec:
+        specs = list(spec["kinds"].values())
+        routes = [k.get("primary") for k in specs] + [k.get("fallback") for k in specs]
+    elif "primary" in spec or "fallback" in spec:
+        routes = [spec.get("primary"), spec.get("fallback")]
+    elif spec.get("family") == "claude":
+        routes = [spec]
+    elif isinstance(spec.get("claude"), dict):
+        routes = [dict(spec["claude"], family="claude")]
+    else:
+        routes = []
+    return [r for r in routes if r and r.get("family") == "claude"]
+
+
 def claude_models(spec):
     """Models the Agent tool may run this role on, from routing.json."""
-    if "kinds" in spec:  # implementer: any kind's primary or fallback
-        # primaries first, then fallbacks, each in routing.json order
-        routes = [k.get("primary") for k in spec["kinds"].values()] + [k.get("fallback") for k in spec["kinds"].values()]
-        return list(dict.fromkeys(r["model"] for r in routes if r and r.get("family") == "claude"))
-    if spec.get("family") == "claude":
-        return [spec["model"]]
-    if isinstance(spec.get("claude"), dict):  # critical-reviewer
-        return [spec["claude"]["model"]]
-    return []
+    return list(dict.fromkeys(r["model"] for r in claude_routes(spec)))
 
 
 def model_ok(given, allowed):
@@ -145,7 +153,9 @@ def check_agent(data, entry):
     model = ti.get("model")
     effort = ti.get("effort")
     effort_from = "input" if effort is not None else None
-    entry.update(role=role or None, model=model, effort=effort, effort_from=effort_from)
+    entry.update(role=role or None, model=model, effort=effort, effort_from=effort_from,
+                 tool_use_id=data.get("tool_use_id"),
+                 design=role == "designer" or str(ti.get("description") or "").startswith("design:"))
     if role == "implementer":
         match = re.match(r"^\s*(trivial|specified|symptom-bug|native-mobile)\s*:",
                          str(ti.get("description") or ""), re.I)
@@ -163,9 +173,7 @@ def check_agent(data, entry):
         routes = [kind_spec.get("primary"), kind_spec.get("fallback")]
         entry["route_ok"] = bool(effective and model_ok(effective, [r["model"] for r in routes
                                               if r and r.get("family") == "claude"]))
-    routes = ([r for k in spec["kinds"].values() for r in (k.get("primary"), k.get("fallback"))
-               if r and r.get("family") == "claude"] if "kinds" in spec else
-              [spec if spec.get("family") == "claude" else spec["claude"]])
+    routes = claude_routes(spec)
     if role == "implementer" and entry.get("kind"):
         kind_spec = spec["kinds"][entry["kind"]]
         kind_routes = [r for r in (kind_spec.get("primary"), kind_spec.get("fallback"))

@@ -1,0 +1,434 @@
+#!/usr/bin/env python3
+"""Run one designer outside a checkout; print the final report's path.
+
+  designer-run --prompt-file FILE [--out DIR] [--fallback] [--read FILE ...]
+
+The prompt is RULES.md, the designer body, the brief, then its output folder
+and copied project files.
+Routes come from routing.json. Launch and finish go to the launch log; the
+single JSON result and its result text go beside each other under reports/.
+Bash runs only in the sandbox; unsandboxed commands are refused. Writes stay in
+OUT and the run's temp folder; there is no network. Reads deny home, user, shared
+temp, mounted-volume and local package config folders except OUT, the run's temp
+folder and Playwright cache; file tools stay in OUT. The child gets a short environment
+allow list, Claude sign-in, config folder and base URL variables hidden from Bash,
+and no CLAUDE.md, memory or background tasks.
+OUT must be new or empty. Cleanup stops the process group and processes left in
+either folder or carrying the run marker (dropping the marker and leaving both
+folders escapes), then copies only regular, singly linked output files into a
+fresh adjacent -publish folder for publishing. Missing sandbox flags refuse the
+launch; a machine without the sandbox fails the run.
+Exit codes: Claude's own, 2 for usage, routing or unreadable result problems.
+Claude flags: `claude --help` (Claude Code 2.1.308): -p/--print,
+--output-format json, --model MODEL, --effort high, --restricted,
+--strict-mcp-config, --tools, --settings, --allowedTools and
+--disallowedTools (space-separated tool names and permission rules),
+--permission-mode dontAsk (default when dontAsk is absent from help):
+https://code.claude.com/docs/en/cli-reference
+Absolute permission paths use //, as in Edit(//absolute/path/**):
+https://code.claude.com/docs/en/permissions
+"""
+import argparse
+import json
+import os
+import re
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+
+
+SANDBOX = {
+    "enabled": True, "failIfUnavailable": True, "allowUnsandboxedCommands": False,
+    "autoAllowBashIfSandboxed": True,
+    "network": {"allowedDomains": []},
+    "filesystem": {"denyRead": ["~"], "denyWrite": ["/tmp/claude", "/private/tmp/claude", "~/.npm", "~/.claude/debug"]},
+}
+CLAUDE_ONLY = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN",
+               "CLAUDE_CONFIG_DIR", "ANTHROPIC_BASE_URL")
+ENVIRONMENT = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TZ") + CLAUDE_ONLY
+
+
+def user_pids():
+    if os.path.isdir("/proc"):
+        found = set()
+        for pid in os.listdir("/proc"):
+            try:
+                if pid.isdigit() and os.stat("/proc/" + pid).st_uid == os.getuid():
+                    found.add(int(pid))
+            except FileNotFoundError:
+                pass
+        return found
+    result = subprocess.run(["ps", "-U", str(os.getuid()), "-o", "pid="], capture_output=True, text=True)
+    if result.returncode and not result.stdout.strip():
+        raise OSError("cannot list user processes")
+    return {int(pid) for pid in result.stdout.split()}
+
+
+def run_processes(name, folders, existing, child_pid):
+    found = set()
+    def inside(path):
+        path = os.path.realpath(path)
+        return any(os.path.commonpath((path, folder)) == folder for folder in folders)
+    if os.path.isdir("/proc"):
+        for pid in os.listdir("/proc"):
+            if not pid.isdigit():
+                continue
+            try:
+                base = "/proc/" + pid
+                if os.stat(base).st_uid != os.getuid():
+                    continue
+                with open(base + "/environ", "rb") as stream:
+                    marked = ("DESIGNER_RUN=" + name).encode() in stream.read().split(b"\0")
+                if marked or (int(pid) not in existing and inside(os.readlink(base + "/cwd"))):
+                    found.add(int(pid))
+            except OSError:
+                continue
+    else:
+        for argv in (["ps", "-E", "-ww", "-o", "pid=", "-o", "command=", "-U", str(os.getuid())],
+                     ["lsof", "-a", "-d", "cwd", "-u", str(os.getuid()), "-Fpn"]):
+            try:
+                result = subprocess.run(argv, capture_output=True, text=True)
+                output = result.stdout
+                if result.returncode and not output.strip():
+                    print("designer-run: warning: cannot scan processes with " + argv[0], file=sys.stderr)
+                pid = None
+                for line in output.splitlines():
+                    if argv[0] == "ps":
+                        if re.search(r" DESIGNER_RUN=" + re.escape(name) + r"(?=\s|$)", line):
+                            found.add(int(line.split(None, 1)[0]))
+                    elif line.startswith("p"):
+                        pid = int(line[1:])
+                    elif line.startswith("n") and pid and pid not in existing and inside(line[1:]):
+                        found.add(pid)
+            except (OSError, ValueError, subprocess.CalledProcessError):
+                print("designer-run: warning: cannot scan processes with " + argv[0], file=sys.stderr)
+    return found - {os.getpid(), child_pid}
+
+
+def stop_processes(child, name, out, temporary, existing):
+    def send(pid, sig):
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            pass
+    if child is not None:
+        try:
+            os.killpg(child.pid, signal.SIGTERM)
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                child.poll()
+                os.killpg(child.pid, 0)
+                time.sleep(0.05)
+            os.killpg(child.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            # macOS answers EPERM for a group left with only zombies.
+            pass
+        child.wait()
+    folders = tuple(folder for folder in (out, temporary) if folder)
+    child_pid = child.pid if child is not None else None
+    found = run_processes(name, folders, existing, child_pid)
+    for pid in found:
+        send(pid, signal.SIGTERM)
+    deadline = time.monotonic() + 2
+    pending = set(found)
+    while pending and time.monotonic() < deadline:
+        for pid in tuple(pending):
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                pending.remove(pid)
+        if pending:
+            time.sleep(0.05)
+    for pid in pending:
+        send(pid, signal.SIGKILL)
+    remaining = run_processes(name, folders, existing, child_pid)
+    for pid in remaining:
+        send(pid, signal.SIGKILL)
+    return len(found | remaining)
+
+
+def copy_output(out, publish):
+    skipped, created = 0, False
+    def onerror(error):
+        nonlocal skipped
+        skipped += 1
+    try:
+        os.mkdir(publish, 0o755)
+        created = True
+        for folder, dirs, files, dirfd in os.fwalk(out, follow_symlinks=False, onerror=onerror):
+            target = os.path.join(publish, os.path.relpath(folder, out))
+            for name in dirs[:]:
+                try:
+                    if stat.S_ISLNK(os.stat(name, dir_fd=dirfd, follow_symlinks=False).st_mode):
+                        dirs.remove(name)
+                        skipped += 1
+                except Exception:
+                    dirs.remove(name)
+                    skipped += 1
+            for name in files:
+                destination = None
+                try:
+                    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dirfd)
+                    with os.fdopen(fd, "rb") as source:
+                        info = os.fstat(source.fileno())
+                        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                            skipped += 1
+                            continue
+                        os.makedirs(target, mode=0o755, exist_ok=True)
+                        path = os.path.join(target, name)
+                        dest = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+                        destination = path
+                        with os.fdopen(dest, "wb") as output:
+                            shutil.copyfileobj(source, output)
+                except Exception:
+                    if destination is not None:
+                        try:
+                            os.unlink(destination)
+                        except Exception:
+                            pass
+                    empty = target
+                    while empty != publish:
+                        try:
+                            os.rmdir(empty)
+                        except Exception:
+                            break
+                        empty = os.path.dirname(empty)
+                    skipped += 1
+    except Exception:
+        skipped += 1
+    if skipped:
+        print("designer-run: warning: skipped %d unsafe or unreadable output entries" % skipped, file=sys.stderr)
+    return created, skipped
+
+
+def die(message):
+    print("designer-run: " + str(message), file=sys.stderr)
+    sys.exit(2)
+
+
+def read(path):
+    try:
+        with open(path) as stream:
+            return stream.read()
+    except OSError as error:
+        die("cannot read %s: %s" % (path, error))
+
+
+def write_log(directory, entry):
+    try:
+        with open(os.path.join(directory, "launch-log.jsonl"), "a") as stream:
+            stream.write(json.dumps(entry, sort_keys=True) + "\n")
+    except OSError as error:
+        print("designer-run: cannot write the launch log: %s" % error, file=sys.stderr)
+
+
+def token_counts(result):
+    keys = dict(input_tokens="inputTokens", cache_creation_input_tokens="cacheCreationInputTokens",
+                cache_read_input_tokens="cacheReadInputTokens", output_tokens="outputTokens")
+    totals = dict.fromkeys(keys)
+    models = result.get("modelUsage")
+    if isinstance(models, dict) and models:
+        if any(not isinstance(counts, dict) for counts in models.values()):
+            return totals
+        for key, source in keys.items():
+            values = [counts.get(source) for counts in models.values()]
+            if all(type(value) is int and value >= 0 for value in values):
+                totals[key] = sum(values)
+    else:
+        counts = result.get("usage")
+        if isinstance(counts, dict):
+            for key in keys:
+                value = counts.get(key)
+                if type(value) is int and value >= 0:
+                    totals[key] = value
+    return totals
+
+
+def outside_checkout(out):
+    probe = out
+    while not os.path.exists(probe):
+        probe = os.path.dirname(probe)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    try:
+        check = subprocess.run(["git", "-C", probe, "rev-parse", "--is-inside-work-tree"],
+                               capture_output=True, text=True, env=env)
+    except OSError as error:
+        die("cannot check the output folder: %s" % error)
+    if check.stdout.strip() == "true":
+        die("the output folder must be outside a git work tree")
+    if check.returncode and "not a git repository" not in check.stderr:
+        die("cannot check the output folder: " + check.stderr.strip())
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="designer-run")
+    parser.add_argument("--prompt-file", required=True)
+    parser.add_argument("--out")
+    parser.add_argument("--fallback", action="store_true")
+    parser.add_argument("--read", action="append", default=[])
+    args = parser.parse_args()
+    inputs = []
+    for path in args.read:
+        source = os.path.abspath(os.path.expanduser(path))
+        if os.path.islink(source) or not os.path.isfile(source) or any(part.startswith(".") for part in source.split(os.sep)):
+            die("project input must be a regular file: " + path)
+        if os.path.basename(source) in [os.path.basename(item) for item in inputs]:
+            die("project inputs must have distinct base names")
+        inputs.append(source)
+    root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    try:
+        routing = json.loads(read(os.path.join(root, "routing.json")))
+        route_name = "fallback" if args.fallback else "primary"
+        route = routing["roles"]["designer"][route_name]
+        if (route.get("family") != "claude" or not isinstance(route.get("model"), str)
+                or not route["model"] or route.get("effort") not in ("low", "medium", "high", "xhigh", "max")):
+            raise ValueError("invalid Claude route")
+    except (ValueError, KeyError, TypeError, AttributeError) as error:
+        die("invalid designer route: %s" % error)
+    rules = read(os.path.join(root, "RULES.md")).strip()
+    if not rules:
+        die("RULES.md is empty")
+    body = re.sub(r"\A---\n.*?\n---\n", "", read(os.path.join(root, "agents", "designer.md")), flags=re.S).strip()
+    brief = read(args.prompt_file)
+    directory = os.path.realpath(os.path.expanduser(os.environ.get("AGENTIC_LOG_DIR") or "~/.claude/agentic-workflows"))
+    name = "designer-%s-%d" % (time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()), os.getpid())
+    requested = os.path.expanduser(args.out or os.path.join(directory, "designs", name))
+    out = os.path.realpath(requested)
+    publish = out + "-publish"
+    if os.path.lexists(publish):
+        die("the publish folder must not exist")
+    config = os.environ.get("CLAUDE_CONFIG_DIR")
+    config = os.path.realpath(os.path.expanduser(config)) if config else None
+    protected = (os.path.expanduser("~"), os.path.expanduser("~/.claude"), directory, root)
+    if config is not None:
+        protected += (config,)
+    for path in (out, publish):
+        if any(char in requested or char in path for char in "()*?[]\n"):
+            die("the output folder contains permission-rule characters")
+        if any(os.path.commonpath((path, os.path.realpath(folder))) == path for folder in protected):
+            die("the output folder must not contain a protected folder")
+    outside_checkout(out)
+    try:
+        if os.path.exists(out) and (not os.path.isdir(out) or os.listdir(out)):
+            die("the output folder must be new or empty")
+        os.makedirs(out, exist_ok=True)
+        reports = os.path.join(directory, "reports")
+        os.makedirs(reports, exist_ok=True)
+    except OSError as error:
+        die("cannot create output folders: %s" % error)
+    report = os.path.join(reports, name + ".md")
+    result_path = os.path.join(reports, name + ".json")
+    full = rules + "\n\n---\n\n" + body + "\n\n---\n\n" + brief + "\n\nOutput folder: " + out + "\n"
+    env = {key: value for key, value in os.environ.items()
+           if key in ENVIRONMENT or key.startswith("LC_")}
+    env.update(DESIGNER_RUN=name, CLAUDE_CODE_DISABLE_CLAUDE_MDS="1", CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
+               CLAUDE_CODE_DISABLE_BACKGROUND_TASKS="1")
+    try:
+        help_text = subprocess.run(["claude", "--help"], capture_output=True, text=True, env=env, cwd=out, check=True).stdout
+    except (OSError, subprocess.CalledProcessError) as error:
+        die("cannot check claude --help: %s" % error)
+    for flag in ("--restricted", "--strict-mcp-config", "--tools", "--settings"):
+        if flag not in help_text:
+            die("claude lacks required sandbox flag " + flag)
+    for source in inputs:
+        target = os.path.join(out, "input", os.path.basename(source))
+        try:
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(fd, "rb") as stream:
+                if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                    raise OSError("project input is not a regular file")
+                with open(target, "wb") as output:
+                    shutil.copyfileobj(stream, output)
+        except OSError as error:
+            die("cannot copy project input: %s" % error)
+        full += "Project file: %s\n" % target
+    usage = {key: None for key in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")}
+    entry = {"session": os.environ.get("CLAUDE_CODE_SESSION_ID"), "session_id": None,
+             "role": "designer", "tool": "designer-run", "model": route["model"],
+             "effort": route["effort"], "route": route_name, "design": True,
+             "out": out, "report": report, "exit_code": None, **usage}
+    def log(decision):
+        write_log(directory, dict(entry, decision=decision, time=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())))
+    def interrupted(signum, frame):
+        raise SystemExit(128 + signum)
+    temporary = None
+    child = None
+    try:
+        existing = user_pids()
+    except OSError as error:
+        die("cannot list user processes: %s" % error)
+    rc = 2
+    report_written = False
+    try:
+        for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+            signal.signal(sig, interrupted)
+        log("launch")
+        temporary = os.path.realpath(tempfile.mkdtemp(prefix="designer.", dir="/tmp"))
+        settings = {"permissions": {"blockReadsOutsideWorkingDirectories": True}, "sandbox": dict(SANDBOX, filesystem=dict(SANDBOX["filesystem"],
+            denyRead=[path for path in ("~", "/Users", "/home", "/tmp", "/private/tmp",
+                "/var/tmp", "/private/var/tmp", "/opt/homebrew/etc", "/opt/homebrew/var",
+                "/usr/local/etc", "/usr/local/var", "/private/var/folders", "/Volumes", "/mnt", "/media") if os.path.lexists(os.path.expanduser(path))]
+                + ([config] if config is not None else []),
+            allowRead=[out, temporary, "~/Library/Caches/ms-playwright", "~/.cache/ms-playwright"]), credentials={"envVars": [
+            {"name": key, "mode": "deny"} for key in CLAUDE_ONLY if key in env]})}
+        mode = "dontAsk" if "dontAsk" in help_text else "default"
+        argv = ["claude", "-p", "--output-format", "json", "--model", route["model"],
+                "--effort", route["effort"], "--restricted", "--strict-mcp-config",
+                "--tools", "Read", "Grep", "Glob", "Bash", "Edit", "Write",
+                "--settings", json.dumps(settings), "--allowedTools", "Read", "Grep", "Glob",
+                "Edit(/%s/**)" % out, "Write(/%s/**)" % out,
+                "--disallowedTools", "NotebookEdit", "--permission-mode", mode]
+        env["CLAUDE_CODE_TMPDIR"] = temporary
+        with open(result_path, "wb") as stream:
+            child = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=stream, cwd=out,
+                                     env=env, start_new_session=True)
+            child.communicate(full.encode())
+        rc = child.returncode if child.returncode >= 0 else 128 - child.returncode
+        try:
+            with open(result_path) as stream:
+                result = json.load(stream)
+            if not isinstance(result, dict) or not isinstance(result.get("result"), str):
+                raise ValueError("missing result text")
+            entry["session_id"] = result.get("session_id")
+            entry.update(token_counts(result))
+            with open(report, "w") as stream:
+                stream.write(result["result"])
+            report_written = True
+        except (ValueError, OSError) as error:
+            entry["error"] = "unreadable result: %s" % error
+            rc = rc or 2
+    except OSError as error:
+        entry["error"] = str(error)
+        print("designer-run: run failed: %s" % error, file=sys.stderr)
+    except SystemExit as error:
+        rc = error.code
+        raise
+    finally:
+        for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+            signal.signal(sig, signal.SIG_IGN)
+        try:
+            entry["stopped"] = stop_processes(child, name, out, temporary, existing)
+            created, entry["skipped"] = copy_output(out, publish)
+            if created:
+                entry["publish"] = publish
+        finally:
+            if temporary is not None:
+                shutil.rmtree(temporary, ignore_errors=True)
+            entry["exit_code"] = rc
+            log("finished")
+            for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+                signal.signal(sig, signal.SIG_DFL)
+    if report_written:
+        print(report)
+        if "publish" in entry:
+            print(publish)
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+"""Count design / (design + lead + implementation) tokens in a retro window.
+
+--since is inclusive, --until exclusive; ISO times without a zone mean UTC.
+Unreadable or invalid sources are reported on stderr and exit 1 marks an
+incomplete report. An open design mark runs until the next end or window end.
+"""
+import argparse
+import datetime
+import json
+import os
+from pathlib import Path
+import sys
+
+CLAUDE_KEYS = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
+
+
+class Counter:
+    def __init__(self, since, until):
+        self.since, self.until = since, until
+        self.totals = dict(design=0, lead=0, implementation=0)
+        self.incomplete = False
+
+    def warn(self, source, reason):
+        self.incomplete = True
+        print("design-share: %s: %s" % (source, reason), file=sys.stderr)
+
+    def read(self, path, lines=False):
+        try:
+            with path.open() as f:
+                if not lines:
+                    value = json.load(f)
+                    if not isinstance(value, dict):
+                        raise ValueError("expected an object")
+                    return value
+                values = []
+                for i, line in enumerate(f, 1):
+                    try:
+                        row = json.loads(line)
+                        if not isinstance(row, dict):
+                            raise ValueError("expected an object")
+                        values.append(row)
+                    except ValueError:
+                        self.warn("%s:%d" % (path, i), "invalid JSON object")
+                return values
+        except (OSError, ValueError) as e:
+            self.warn(path, str(e))
+            return [] if lines else {}
+
+    def timestamp(self, value, source):
+        try:
+            return iso(value)
+        except (ValueError, TypeError):
+            self.warn(source, "missing or invalid timestamp")
+
+    def inside(self, stamp):
+        return stamp is not None and self.since <= stamp < self.until
+
+    def usage(self, usage, keys, source):
+        if not isinstance(usage, dict):
+            self.warn(source, "missing usage")
+            return 0
+        values = [usage.get(key) for key in keys]
+        if any(type(value) is not int or value < 0 for value in values):
+            self.warn(source, "missing or invalid token counts")
+            return 0
+        return sum(values)
+
+    def transcript(self, path, category, marks=(), rows=None):
+        seen = set()
+        for row in self.read(path, lines=True) if rows is None else rows:
+            if row.get("type") != "assistant":
+                continue
+            message = row.get("message") or {}
+            if not isinstance(message, dict):
+                self.warn(path, "invalid assistant message")
+                continue
+            stamp = self.timestamp(row.get("timestamp"), path)
+            if not self.inside(stamp):
+                continue
+            ident = message.get("id")
+            if not ident:
+                self.warn(path, "assistant message has no id")
+                continue
+            if ident in seen:
+                continue
+            seen.add(ident)
+            bucket = "design" if any(start <= stamp < end for start, end in marks) else category
+            if bucket:
+                self.totals[bucket] += self.usage(message.get("usage"), CLAUDE_KEYS, path)
+
+
+def iso(value):
+    if not isinstance(value, str):
+        raise ValueError("expected an ISO time")
+    stamp = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return stamp.replace(tzinfo=datetime.timezone.utc) if stamp.tzinfo is None else stamp
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--since")
+    p.add_argument("--until")
+    base = Path(os.environ.get("AGENTIC_LOG_DIR") or "~/.claude/agentic-workflows").expanduser()
+    p.add_argument("--log", type=Path, default=base / "launch-log.jsonl")
+    p.add_argument("--projects", type=Path, default=Path("~/.claude/projects").expanduser())
+    a = p.parse_args()
+    try:
+        since = iso(a.since) if a.since else datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+        until = iso(a.until) if a.until else datetime.datetime.max.replace(tzinfo=datetime.timezone.utc)
+    except (ValueError, TypeError):
+        p.error("--since and --until must be ISO times")
+    if since >= until:
+        p.error("--since must be before --until")
+    count = Counter(since, until)
+    rows = count.read(a.log, lines=True)
+    marks, opened, launches, states = {}, {}, {}, {}
+    timed_marks = []
+    for row in rows:
+        if row.get("decision") == "design-mark":
+            stamp = count.timestamp(row.get("time"), a.log)
+            if stamp is not None and row.get("session"):
+                timed_marks.append((stamp, row))
+    for stamp, row in sorted(timed_marks, key=lambda pair: pair[0]):
+        session = row["session"]
+        if row.get("mark") == "start":
+            opened.setdefault(session, stamp)
+        elif row.get("mark") == "end" and session in opened:
+            marks.setdefault(session, []).append((opened.pop(session), stamp))
+    for session, start in opened.items():
+        marks.setdefault(session, []).append((start, until))
+    for row in rows:
+        if row.get("tool") == "Agent" and row.get("decision") in ("allow", "pass", "launch"):
+            launches[(row.get("session"), row.get("tool_use_id"))] = row.get("design") is True
+
+    def coordinator(session):
+        if session not in states:
+            path = a.log.parent / "sessions" / session
+            # A missing state is not evidence that a session is a coordinator.
+            states[session] = count.read(path).get("coordinator") is True if path.exists() else False
+        return states[session]
+
+    for row in rows:
+        if row.get("decision") != "finished" or row.get("tool") not in ("codex-run", "designer-run"):
+            continue
+        if not count.inside(count.timestamp(row.get("time"), a.log)):
+            continue
+        category = "design" if row.get("design") is True else "implementation" if row.get("session") and coordinator(row["session"]) else None
+        if category:
+            keys = ("input_tokens", "output_tokens") if row["tool"] == "codex-run" else CLAUDE_KEYS
+            if (type(row.get("exit_code")) is int and row["exit_code"] != 0
+                    and all(row.get(key) is None for key in (*keys, "cached_input_tokens"))):
+                continue
+            count.totals[category] += count.usage(row, keys, a.log)
+
+    try:
+        projects = list(a.projects.iterdir())
+    except OSError as e:
+        count.warn(a.projects, str(e))
+        projects = []
+    runner_sessions = {row.get("session_id") for row in rows
+                       if row.get("tool") == "designer-run" and row.get("session_id")}
+    for project in projects:
+        if not project.is_dir():
+            continue
+        try:
+            transcripts = [path for path in project.iterdir() if path.suffix == ".jsonl" and path.is_file()]
+        except OSError as e:
+            count.warn(project, str(e))
+            continue
+        for path in transcripts:
+            session = path.stem
+            if session in runner_sessions:
+                continue
+            main_rows = count.read(path, lines=True)
+            lead = False
+            for row in main_rows:
+                cwd = row.get("cwd")
+                if isinstance(cwd, str):
+                    folder = Path(cwd)
+                    lead = folder.name == "lead" and (folder / "CLAUDE.md").is_file() and (folder.parent / "track.md").is_file()
+                    break
+            category = "implementation" if coordinator(session) else "lead" if lead else None
+            count.transcript(path, category, marks.get(session, ()), main_rows)
+            subdir = project / session / "subagents"
+            if not subdir.exists():
+                continue
+            try:
+                subs = [path for path in subdir.iterdir() if path.name.startswith("agent-") and path.suffix == ".jsonl"]
+            except OSError as e:
+                count.warn(subdir, str(e))
+                continue
+            for sub in subs:
+                meta_path = sub.with_suffix(".meta.json")
+                meta = count.read(meta_path) if meta_path.exists() else {}
+                design = meta.get("agentType") == "agentic-workflows:designer" or launches.get((session, meta.get("toolUseId")), False)
+                bucket = "design" if design else category
+                count.transcript(sub, bucket)
+    for name, tokens in count.totals.items():
+        print("%s: %d tokens" % (name, tokens))
+    total = sum(count.totals.values())
+    share = 100 * count.totals["design"] / total if total else 0
+    print("design share: %.2f%% (%s 10%% line)" % (share, "over" if count.totals["design"] * 10 > total else "at or under"))
+    if count.incomplete:
+        print("report incomplete", file=sys.stderr)
+    return 1 if count.incomplete else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
