@@ -11,7 +11,7 @@ Bash runs only in the sandbox; unsandboxed commands are refused. Writes stay in
 OUT and the run's temp folder; there is no network, and reads are limited to
 those folders and the Playwright browser cache. The child gets a short environment
 allow list, Claude sign-in, config folder and base URL variables hidden from Bash,
-and no CLAUDE.md or memory.
+and no CLAUDE.md, memory or background tasks.
 OUT must be new or empty. Cleanup stops the process group and processes left in
 either folder or carrying the run marker (dropping the marker and leaving both
 folders escapes), then copies only regular, singly linked output files into a
@@ -214,6 +214,28 @@ def write_log(directory, entry):
         print("designer-run: cannot write the launch log: %s" % error, file=sys.stderr)
 
 
+def token_counts(result):
+    keys = dict(input_tokens="inputTokens", cache_creation_input_tokens="cacheCreationInputTokens",
+                cache_read_input_tokens="cacheReadInputTokens", output_tokens="outputTokens")
+    totals = dict.fromkeys(keys)
+    models = result.get("modelUsage")
+    if isinstance(models, dict):
+        for counts in models.values():
+            if isinstance(counts, dict):
+                for key, source in keys.items():
+                    value = counts.get(source)
+                    if type(value) is int and value >= 0:
+                        totals[key] = (totals[key] or 0) + value
+    if all(value is None for value in totals.values()):
+        counts = result.get("usage")
+        if isinstance(counts, dict):
+            for key in keys:
+                value = counts.get(key)
+                if type(value) is int and value >= 0:
+                    totals[key] = value
+    return totals
+
+
 def outside_checkout(out):
     probe = out
     while not os.path.exists(probe):
@@ -291,7 +313,8 @@ def main():
     full = rules + "\n\n---\n\n" + body + "\n\n---\n\n" + brief + "\n\nOutput folder: " + out + "\n"
     env = {key: value for key, value in os.environ.items()
            if key in ENVIRONMENT or key.startswith("LC_")}
-    env.update(DESIGNER_RUN=name, CLAUDE_CODE_DISABLE_CLAUDE_MDS="1", CLAUDE_CODE_DISABLE_AUTO_MEMORY="1")
+    env.update(DESIGNER_RUN=name, CLAUDE_CODE_DISABLE_CLAUDE_MDS="1", CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
+               CLAUDE_CODE_DISABLE_BACKGROUND_TASKS="1")
     try:
         help_text = subprocess.run(["claude", "--help"], capture_output=True, text=True, env=env, cwd=out, check=True).stdout
     except (OSError, subprocess.CalledProcessError) as error:
@@ -353,12 +376,7 @@ def main():
             if not isinstance(result, dict) or not isinstance(result.get("result"), str):
                 raise ValueError("missing result text")
             entry["session_id"] = result.get("session_id")
-            counts = result.get("usage")
-            if isinstance(counts, dict):
-                for key in usage:
-                    value = counts.get(key)
-                    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
-                        entry[key] = value
+            entry.update(token_counts(result))
             with open(report, "w") as stream:
                 stream.write(result["result"])
         except (ValueError, OSError) as error:

@@ -19,6 +19,24 @@ from unittest.mock import patch
 
 root = Path(sys.argv[1])
 launcher = runpy.run_path(str(root / 'bin/designer-run'))
+# Whole-run model counts take precedence; incomplete counts stay unknown.
+counts = launcher['token_counts']
+usage = dict(input_tokens=12, cache_creation_input_tokens=3, cache_read_input_tokens=5, output_tokens=7)
+models = {'first': dict(inputTokens=20, cacheCreationInputTokens=4, cacheReadInputTokens=6, outputTokens=8),
+          'second': dict(inputTokens=30, cacheCreationInputTokens=5, cacheReadInputTokens=7, outputTokens=9)}
+summed = dict(input_tokens=50, cache_creation_input_tokens=9, cache_read_input_tokens=13, output_tokens=17)
+assert counts(dict(modelUsage=models, usage=usage)) == summed
+for invalid in (None, [], {}, {'model': None}, {'model': dict(inputTokens=True,
+        cacheCreationInputTokens=-1, cacheReadInputTokens='5', outputTokens=1.5)}):
+    assert counts(dict(modelUsage=invalid, usage=usage)) == usage
+assert counts(dict(usage=usage)) == usage
+partial = {'valid': dict(inputTokens=0, outputTokens=2),
+           'invalid': dict(inputTokens=False, cacheCreationInputTokens=-1, cacheReadInputTokens='5'),
+           'other': []}
+assert counts(dict(modelUsage=partial, usage=usage)) == dict(input_tokens=0,
+    cache_creation_input_tokens=None, cache_read_input_tokens=None, output_tokens=2)
+assert all(value is None for value in counts({}).values())
+print('designer-run token counts: ok', flush=True)
 # Partial process listings still protect existing pids and find run markers.
 with patch('os.path.isdir', return_value=False), patch('subprocess.run') as command:
     command.return_value = subprocess.CompletedProcess([], 1, stdout='101\n102\n')
@@ -110,7 +128,10 @@ if config.get('BACKGROUND'):
     for cwd, new_session in [(os.getcwd(), True), ('/', True), (os.environ['CLAUDE_CODE_TMPDIR'], True), ('/', False)]:
         children.append(subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(300)'], cwd=cwd, start_new_session=new_session, env={k:v for k,v in os.environ.items() if cwd == '/' or k != 'DESIGNER_RUN'}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
     Path(config['BACKGROUND']).write_text(json.dumps([p.pid for p in children]))
-print(json.dumps({'result':'page and screenshots','session_id':'child-session','usage':json.loads(config.get('FAKE_USAGE', '{"input_tokens":12,"cache_creation_input_tokens":3,"cache_read_input_tokens":5,"output_tokens":7}'))}))
+result = {'result':'page and screenshots','session_id':'child-session','usage':json.loads(config.get('FAKE_USAGE', '{"input_tokens":12,"cache_creation_input_tokens":3,"cache_read_input_tokens":5,"output_tokens":7}'))}
+if 'FAKE_MODEL_USAGE' in config:
+    result['modelUsage'] = config['FAKE_MODEL_USAGE']
+print(json.dumps(result))
 sys.exit(int(config.get('FAKE_EXIT','0')))
 ''')
     fake.chmod(0o755)
@@ -173,7 +194,8 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
                'ANTHROPIC_API_KEY','ANTHROPIC_AUTH_TOKEN','CLAUDE_CODE_OAUTH_TOKEN','CLAUDE_CONFIG_DIR','ANTHROPIC_BASE_URL'}
     expected_env = {k:v for k,v in env.items() if k in allowed or k.startswith('LC_')}
     expected_env.update(DESIGNER_RUN=report.stem, CLAUDE_CODE_TMPDIR=recorded['env']['CLAUDE_CODE_TMPDIR'],
-                        CLAUDE_CODE_DISABLE_CLAUDE_MDS='1', CLAUDE_CODE_DISABLE_AUTO_MEMORY='1')
+                        CLAUDE_CODE_DISABLE_CLAUDE_MDS='1', CLAUDE_CODE_DISABLE_AUTO_MEMORY='1',
+                        CLAUDE_CODE_DISABLE_BACKGROUND_TASKS='1')
     assert recorded['env'] == expected_env, set(recorded['env']) ^ set(expected_env)
     help_env = dict(expected_env)
     del help_env['CLAUDE_CODE_TMPDIR']
@@ -205,6 +227,8 @@ sys.exit(int(config.get('FAKE_EXIT','0')))
     assert Path(result.stdout.splitlines()[1]).is_dir()
     assert entries[1]['session_id'] == 'child-session' and entries[1]['exit_code'] == 0
     assert [entries[1][k] for k in ('input_tokens','cache_creation_input_tokens','cache_read_input_tokens','output_tokens')] == [12,3,5,7]
+    assert run('--out', str(fresh()), extra={'FAKE_MODEL_USAGE':models}).returncode == 0
+    assert {key:logs()[-1][key] for key in summed} == summed
     assert run('--fallback').returncode == 0
     recorded = json.loads((tmp / 'record').read_text())
     assert recorded['argv'][recorded['argv'].index('--model') + 1] == 'fable'
