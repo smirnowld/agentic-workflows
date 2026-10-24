@@ -35,7 +35,7 @@ Why: in blind-graded side-by-side runs, Codex Sol at medium did best on specifie
 | Visual reviewer | Sonnet, medium | Screens and pages: layout, states, copy with the strings attached. |
 
 An Agent launch of the designer is checked like the others; the PM uses `designer-run` because its folder denies edits.
-The sandbox confines writes to the output folder and the run’s temp folder, network to localhost, hides credential files and variables, and leaves nothing running. `designer-run` refuses to start if `claude` lacks the sandbox flags; `failIfUnavailable` fails the run on machines without the sandbox.
+Bash runs only in the sandbox and unsandboxed commands are refused: writes stay in the output and run’s temp folders, there is no network, home reads are limited to the output folder and Playwright browser cache, and the child gets a short environment allow list with Claude’s sign-in variables hidden from Bash and no CLAUDE.md or memory. The output folder must be new or empty; `designer-run` refuses missing sandbox flags and fails without the sandbox, stops its process group and processes left in its folders or carrying its marker (dropping the marker and leaving both folders escapes), and removes output links.
 
 The maintainer starts PM and lead sessions with their routes. Neither launch check nor start check validates their own session model or effort; start check checks coordinator starts in configured tracks. An Agent launch of PM or lead passes through, as do spec critic and strategist, which have no Claude route; use `codex-run` for their enforced route and read-only sandbox.
 
